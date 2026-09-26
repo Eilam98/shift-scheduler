@@ -3,7 +3,7 @@
 See `PROJECT_SPEC.md` in this repo root for the full data model (Prisma schema), the complete auth API contract, and the suggested build order. Read it before starting any feature work — this file only has the condensed conventions.
 
 ## Working style
-- The developer is learning: work one small task at a time, explain each step (what, why, what the output means), and stop after each task for review.
+- The developer is learning: build one complete feature at a time, test it, then summarize what was built and the key concepts concisely.
 - Git: commit after each finished, verified step. Push to GitHub only when asked. Feature work on `feature/<name>` branches.
 
 ## Stack
