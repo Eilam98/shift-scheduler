@@ -16,7 +16,7 @@ See `PROJECT_SPEC.md` in this repo root for the full data model (Prisma schema),
 - `/client` — React frontend (not created yet)
 - `/server` — Express API
   - `src/prisma/schema.prisma` — data model; `src/prisma/migrations/` — generated SQL migrations (committed, never edit by hand)
-  - `src/prisma/seed.ts` — creates departments, shift templates, and the first restaurant manager
+  - `src/prisma/seed.ts` — creates departments, shift templates, and the only restaurant manager (details from `.env`)
   - `src/lib/` — shared helpers (`prisma.ts` client, `auth.ts` JWT/bcrypt/password rule)
   - `src/middleware/auth.ts` — `authenticate`, `requireRestaurantManager`, `requireDepartmentManager`
   - `src/routes/` — one router per resource
@@ -25,6 +25,8 @@ See `PROJECT_SPEC.md` in this repo root for the full data model (Prisma schema),
 - `DATABASE_URL` — Neon **pooled** connection string (host contains `-pooler`), used by the running app
 - `DIRECT_URL` — same string without `-pooler`, used by `prisma migrate` (migrations need a direct connection)
 - `JWT_SECRET` — long random string; `PORT` — defaults to 4000
+- `SEED_MANAGER_NAME` / `SEED_MANAGER_EMAIL` / `SEED_MANAGER_PASSWORD` — read only by the seed script to create the restaurant manager (temporary password, forced change on first login). Personal data and passwords never go in committed code.
+- User IDs are auto-generated cuids — never use national ID numbers or other real-world identifiers as IDs.
 
 ## Domain rules (important — enforce these in middleware, not scattered checks)
 - Roles: Restaurant Manager (global), Department Manager (scoped to one department), Worker
@@ -49,7 +51,7 @@ See `PROJECT_SPEC.md` in this repo root for the full data model (Prisma schema),
 ## Progress
 - [x] Server scaffolding, auth + user routes (code)
 - [x] Neon database connected; initial migration `init` applied (all tables created)
-- [ ] Seed the first restaurant manager (`npx prisma db seed`)
+- [x] Seeded: 3 departments (Waiters, Hostesses, Bar), MORNING/EVENING templates, restaurant manager account (seed is idempotent — safe to re-run)
 - [ ] Smoke-test the API (login, `/me`)
 - [ ] Client scaffolding + login / forced password-change screens
 

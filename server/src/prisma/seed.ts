@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
-import { hashPassword } from "../lib/auth";
+import { hashPassword, isValidPassword } from "../lib/auth";
 
 const prisma = new PrismaClient();
 
@@ -31,26 +31,40 @@ async function main() {
     create: { label: "EVENING", defaultStartTime: "16:00", defaultEndTime: "23:30" },
   });
 
-  // CHANGE THESE before running in anything but local dev.
-  const managerEmail = "manager@example.com";
-  const managerTempPassword = "ChangeMe123";
+  // The manager's details come from server/.env (gitignored) so personal
+  // info and the temporary password never end up in the repo.
+  const managerName = process.env.SEED_MANAGER_NAME;
+  const managerEmail = process.env.SEED_MANAGER_EMAIL?.trim().toLowerCase();
+  const managerTempPassword = process.env.SEED_MANAGER_PASSWORD;
 
-  const existingManager = await prisma.user.findUnique({ where: { email: managerEmail } });
+  if (!managerName || !managerEmail || !managerTempPassword) {
+    throw new Error(
+      "Set SEED_MANAGER_NAME, SEED_MANAGER_EMAIL and SEED_MANAGER_PASSWORD in server/.env"
+    );
+  }
+  if (!isValidPassword(managerTempPassword)) {
+    throw new Error(
+      "SEED_MANAGER_PASSWORD must be at least 8 characters and include a letter and a number"
+    );
+  }
+
+  // Only one restaurant manager may exist (PROJECT_SPEC.md "Roles").
+  const existingManager = await prisma.user.findFirst({ where: { isRestaurantManager: true } });
   if (!existingManager) {
     const passwordHash = await hashPassword(managerTempPassword);
     await prisma.user.create({
       data: {
-        name: "Restaurant Manager",
+        name: managerName,
         email: managerEmail,
         passwordHash,
         isRestaurantManager: true,
         requiresPasswordChange: true,
       },
     });
-    console.log(`Created restaurant manager: ${managerEmail} / ${managerTempPassword}`);
-    console.log("Log in and change this password immediately.");
+    console.log(`Created restaurant manager: ${managerEmail}`);
+    console.log("You'll be asked to change the temporary password on first login.");
   } else {
-    console.log("Restaurant manager already exists, skipping.");
+    console.log(`Restaurant manager already exists (${existingManager.email}), skipping.`);
   }
 }
 
