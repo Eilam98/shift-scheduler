@@ -15,7 +15,12 @@ See `PROJECT_SPEC.md` in this repo root for the full data model (Prisma schema),
 ## Folder structure
 - `/client` — React frontend (Vite + React 19 + TS + Tailwind v4)
   - `vite.config.ts` — proxies `/api` to `http://localhost:4000` in dev, so client code calls `fetch("/api/...")` with no host/port
-  - `src/main.tsx` entry → `src/App.tsx` root component; `src/index.css` just imports Tailwind
+  - `src/main.tsx` entry (wraps the app in `AuthProvider`) → `src/App.tsx` picks the screen: Login → ChangePassword (if `requiresPasswordChange`) → Home
+  - `src/lib/api.ts` — `api<T>(path, {method, body})` fetch wrapper: adds the Bearer token, throws `ApiError` with the server's message. Use it for every API call.
+  - `src/auth/` — `AuthProvider` (user state, login/logout/changePassword, restores session via `/me` on load) + `useAuth()` hook
+  - `src/pages/` — one component per screen; `src/components/ui.tsx` — shared `Screen`, `Card`, `TextField`, `Button`, `ErrorMessage`
+  - `src/types.ts` — API response types (mirror the server's response shapes)
+  - JWT stored in `localStorage` under `shift-organizer.token`
 - `/server` — Express API
   - `src/prisma/schema.prisma` — data model; `src/prisma/migrations/` — generated SQL migrations (committed, never edit by hand)
   - `src/prisma/seed.ts` — creates departments, shift templates, and the only restaurant manager (details from `.env`)
@@ -56,7 +61,8 @@ See `PROJECT_SPEC.md` in this repo root for the full data model (Prisma schema),
 - [x] Seeded: 3 departments (Waiters, Hostesses, Bar), MORNING/EVENING templates, restaurant manager account (seed is idempotent — safe to re-run)
 - [x] Smoke-tested the API: `/api/health`, login (success + 401/400 failures), `/me` with/without token. Note: opening `localhost:4000` itself shows "Cannot GET /" — expected, there is no route at `/`.
 - [x] Client scaffolding: `/client` created, Tailwind + `/api` proxy working (test page shows "Server connected")
-- [ ] Login screen + forced password-change screen (branch `feature/login`)
+- [x] Login screen, forced password-change screen, session restore on refresh, logout
+- [ ] Next: restaurant manager screen to create workers + assign departments
 
 ## Commands
 - `cd server && npm run dev` — start API
