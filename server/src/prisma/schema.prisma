@@ -4,7 +4,8 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url       = env("DATABASE_URL") // pooled connection, used by the running app
+  directUrl = env("DIRECT_URL") // direct connection, used by `prisma migrate`
 }
 
 enum ShiftLabel {

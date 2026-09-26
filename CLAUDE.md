@@ -2,31 +2,60 @@
 
 See `PROJECT_SPEC.md` in this repo root for the full data model (Prisma schema), the complete auth API contract, and the suggested build order. Read it before starting any feature work — this file only has the condensed conventions.
 
+## Working style
+- The developer is learning: work one small task at a time, explain each step (what, why, what the output means), and stop after each task for review.
+- Git: commit after each finished, verified step. Push to GitHub only when asked. Feature work on `feature/<name>` branches.
+
 ## Stack
-- Frontend: React (Vite) + TypeScript, Tailwind CSS
-- Backend: Express + TypeScript
-- Database: PostgreSQL via Prisma ORM
-- Auth: Custom JWT (no third-party auth library)
+- Frontend: React (Vite) + TypeScript, Tailwind CSS — built mobile-first as a PWA (see "Mobile / iPhone")
+- Backend: Express 5 + TypeScript (Express 5 forwards errors thrown in async handlers to the JSON error handler in `server/src/index.ts`)
+- Database: PostgreSQL on Neon, via Prisma ORM (v5)
+- Auth: Custom JWT (no third-party auth library), passwords hashed with bcrypt 6
 
 ## Folder structure
-- `/client` — React frontend
-- `/server` — Express API, Prisma schema in `/server/src/prisma`
+- `/client` — React frontend (not created yet)
+- `/server` — Express API
+  - `src/prisma/schema.prisma` — data model; `src/prisma/migrations/` — generated SQL migrations (committed, never edit by hand)
+  - `src/prisma/seed.ts` — creates departments, shift templates, and the first restaurant manager
+  - `src/lib/` — shared helpers (`prisma.ts` client, `auth.ts` JWT/bcrypt/password rule)
+  - `src/middleware/auth.ts` — `authenticate`, `requireRestaurantManager`, `requireDepartmentManager`
+  - `src/routes/` — one router per resource
+
+## Environment (`server/.env`, gitignored — template in `server/.env.example`)
+- `DATABASE_URL` — Neon **pooled** connection string (host contains `-pooler`), used by the running app
+- `DIRECT_URL` — same string without `-pooler`, used by `prisma migrate` (migrations need a direct connection)
+- `JWT_SECRET` — long random string; `PORT` — defaults to 4000
 
 ## Domain rules (important — enforce these in middleware, not scattered checks)
 - Roles: Restaurant Manager (global), Department Manager (scoped to one department), Worker
 - Only the Restaurant Manager can create workers and assign their departments
+- A user can be manager of at most one department (validated in `server/src/routes/users.ts`)
 - A Department Manager can only create/edit/delete ShiftSlots and Shifts for their own department
 - Workers can view any department's schedule, but only once that department's DepartmentSchedule.status = POSTED
 - Availability is submitted per (date, shiftLabel), independent of Shift rows
+- Emails are stored and compared lowercase
 
 ## Conventions
 - All API routes under `/api`, RESTful, prefixed by resource (`/api/shifts`, `/api/availability`)
-- Validate request bodies with [zod or similar] before hitting the DB
+- Validate request bodies with zod before hitting the DB
 - Auth middleware attaches `req.user` with `{ id, isRestaurantManager, departments: [{departmentId, isManager}] }`
+- Schema changes: edit `schema.prisma`, then `npx prisma migrate dev --name <what_changed>`, and commit the new migration folder together with the schema change
 - Commit messages: short imperative present tense ("Add shift slot endpoint", not "Added")
+
+## Mobile / iPhone
+- Target: installable PWA ("Add to Home Screen" in Safari). Design every screen mobile-first.
+- Later/optional: wrap the same React app with Capacitor for the App Store.
+
+## Progress
+- [x] Server scaffolding, auth + user routes (code)
+- [x] Neon database connected; initial migration `init` applied (all tables created)
+- [ ] Seed the first restaurant manager (`npx prisma db seed`)
+- [ ] Smoke-test the API (login, `/me`)
+- [ ] Client scaffolding + login / forced password-change screens
 
 ## Commands
 - `cd server && npm run dev` — start API
 - `cd client && npm run dev` — start frontend
-- `cd server && npx prisma migrate dev` — run migrations
+- `cd server && npx prisma migrate dev --name <name>` — create + apply a migration after changing the schema
+- `cd server && npx prisma db seed` — run the seed script
 - `cd server && npx prisma studio` — inspect DB visually
