@@ -1,7 +1,9 @@
+import { Navigate, Route, Routes } from 'react-router'
 import { useAuth } from './auth/authContext'
 import { ChangePasswordPage } from './pages/ChangePasswordPage'
 import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
+import { WorkersPage } from './pages/WorkersPage'
 
 function App() {
   const { user, loading } = useAuth()
@@ -11,7 +13,17 @@ function App() {
   }
   if (!user) return <LoginPage />
   if (user.requiresPasswordChange) return <ChangePasswordPage />
-  return <HomePage />
+
+  return (
+    <Routes>
+      <Route path="/" element={<HomePage />} />
+      <Route
+        path="/workers"
+        element={user.isRestaurantManager ? <WorkersPage /> : <Navigate to="/" replace />}
+      />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  )
 }
 
 export default App

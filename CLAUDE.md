@@ -15,10 +15,12 @@ See `PROJECT_SPEC.md` in this repo root for the full data model (Prisma schema),
 ## Folder structure
 - `/client` — React frontend (Vite + React 19 + TS + Tailwind v4)
   - `vite.config.ts` — proxies `/api` to `http://localhost:4000` in dev, so client code calls `fetch("/api/...")` with no host/port
-  - `src/main.tsx` entry (wraps the app in `AuthProvider`) → `src/App.tsx` picks the screen: Login → ChangePassword (if `requiresPasswordChange`) → Home
+  - `src/main.tsx` entry (wraps the app in `BrowserRouter` + `AuthProvider`) → `src/App.tsx` gates: Login → ChangePassword (if `requiresPasswordChange`) → react-router `<Routes>` (`/` Home, `/workers` restaurant-manager only, redirects others to `/`)
   - `src/lib/api.ts` — `api<T>(path, {method, body})` fetch wrapper: adds the Bearer token, throws `ApiError` with the server's message. Use it for every API call.
   - `src/auth/` — `AuthProvider` (user state, login/logout/changePassword, restores session via `/me` on load) + `useAuth()` hook
-  - `src/pages/` — one component per screen; `src/components/ui.tsx` — shared `Screen`, `Card`, `TextField`, `Button`, `ErrorMessage`
+  - `src/pages/` — one component per screen; `src/components/ui.tsx` — shared `Screen`, `Card`, `TextField`, `Button` (`variant="secondary"`), `ErrorMessage`
+  - `src/components/DepartmentPicker.tsx` — member/manager picker per department (enforces ≤1 managed department in the UI); `AddWorkerForm.tsx`
+  - `src/lib/password.ts` — `PASSWORD_RULE`/`PASSWORD_HINT` (mirror the server rule) + `generateTemporaryPassword()`; `src/lib/roles.ts` — `roleLabel(user)`
   - `src/types.ts` — API response types (mirror the server's response shapes)
   - JWT stored in `localStorage` under `shift-organizer.token`
 - `/server` — Express API
@@ -26,7 +28,7 @@ See `PROJECT_SPEC.md` in this repo root for the full data model (Prisma schema),
   - `src/prisma/seed.ts` — creates departments, shift templates, and the only restaurant manager (details from `.env`)
   - `src/lib/` — shared helpers (`prisma.ts` client, `auth.ts` JWT/bcrypt/password rule)
   - `src/middleware/auth.ts` — `authenticate`, `requireRestaurantManager`, `requireDepartmentManager`
-  - `src/routes/` — one router per resource
+  - `src/routes/` — one router per resource: `auth.ts`, `users.ts` (restaurant manager only), `departments.ts` (`GET /api/departments`, any logged-in user)
 
 ## Environment (`server/.env`, gitignored — template in `server/.env.example`)
 - `DATABASE_URL` — Neon **pooled** connection string (host contains `-pooler`), used by the running app
@@ -62,7 +64,10 @@ See `PROJECT_SPEC.md` in this repo root for the full data model (Prisma schema),
 - [x] Smoke-tested the API: `/api/health`, login (success + 401/400 failures), `/me` with/without token. Note: opening `localhost:4000` itself shows "Cannot GET /" — expected, there is no route at `/`.
 - [x] Client scaffolding: `/client` created, Tailwind + `/api` proxy working (test page shows "Server connected")
 - [x] Login screen, forced password-change screen, session restore on refresh, logout
-- [ ] Next: restaurant manager screen to create workers + assign departments
+- [x] Worker management (`/workers`, restaurant manager): list users, add worker with generated temporary password + departments, edit department assignments
+- [ ] Not built yet: delete/deactivate worker, edit name/email, reset a worker's password (no API yet)
+- [ ] Next: schedules — weeks, shifts, and slots per department (department managers), then availability
+- Testing tip: create temporary test users with `@example.test` emails and delete them afterwards (UserDepartment rows first) — never test with the real manager account
 
 ## Commands
 - `cd server && npm run dev` — start API

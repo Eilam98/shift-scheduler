@@ -1,10 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useAuth } from '../auth/authContext'
 import { Button, Card, ErrorMessage, Screen, TextField } from '../components/ui'
-
-// Same rule the server enforces (isValidPassword in server/src/lib/auth.ts).
-const PASSWORD_RULE = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/
-const PASSWORD_HINT = 'At least 8 characters, with at least one letter and one number.'
+import { PASSWORD_HINT, PASSWORD_RULE } from '../lib/password'
 
 /** Shown instead of the app while user.requiresPasswordChange is true. */
 export function ChangePasswordPage() {

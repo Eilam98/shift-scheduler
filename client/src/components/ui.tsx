@@ -31,11 +31,20 @@ export function TextField({
   )
 }
 
-export function Button({ className = '', ...props }: ButtonHTMLAttributes<HTMLButtonElement>) {
+const BUTTON_VARIANTS = {
+  primary: 'bg-indigo-600 text-white hover:bg-indigo-700',
+  secondary: 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50',
+}
+
+export function Button({
+  className = '',
+  variant = 'primary',
+  ...props
+}: { variant?: keyof typeof BUTTON_VARIANTS } & ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
       {...props}
-      className={`w-full rounded-lg bg-indigo-600 px-4 py-3 text-base font-semibold text-white hover:bg-indigo-700 disabled:opacity-60 ${className}`}
+      className={`w-full rounded-lg px-4 py-3 text-base font-semibold disabled:opacity-60 ${BUTTON_VARIANTS[variant]} ${className}`}
     />
   )
 }
