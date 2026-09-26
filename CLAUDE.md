@@ -1,5 +1,7 @@
 # Shift Scheduler — Project Conventions
 
+See `PROJECT_SPEC.md` in this repo root for the full data model (Prisma schema), the complete auth API contract, and the suggested build order. Read it before starting any feature work — this file only has the condensed conventions.
+
 ## Stack
 - Frontend: React (Vite) + TypeScript, Tailwind CSS
 - Backend: Express + TypeScript

@@ -1,0 +1,127 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ShiftLabel {
+  MORNING
+  EVENING
+}
+
+enum ScheduleStatus {
+  DRAFT
+  POSTED
+}
+
+model User {
+  id                     String   @id @default(cuid())
+  name                   String
+  email                  String   @unique
+  passwordHash           String
+  isRestaurantManager    Boolean  @default(false)
+  requiresPasswordChange Boolean  @default(true)
+  createdAt              DateTime @default(now())
+
+  departments  UserDepartment[]
+  slots        ShiftSlot[]
+  availability Availability[]
+}
+
+model Department {
+  id   String @id @default(cuid())
+  name String @unique // "Waiters", "Hostesses", "Bar"
+
+  members         UserDepartment[]
+  slots           ShiftSlot[]
+  departmentWeeks DepartmentSchedule[]
+}
+
+// Many-to-many User <-> Department; isManager is scoped to THIS department
+model UserDepartment {
+  id           String  @id @default(cuid())
+  userId       String
+  departmentId String
+  isManager    Boolean @default(false)
+
+  user       User       @relation(fields: [userId], references: [id])
+  department Department @relation(fields: [departmentId], references: [id])
+
+  @@unique([userId, departmentId])
+}
+
+// Restaurant-wide default start/end time per shift label, overridable per shift
+model ShiftTemplate {
+  id               String     @id @default(cuid())
+  label            ShiftLabel @unique
+  defaultStartTime String // "08:00"
+  defaultEndTime   String // "16:00"
+}
+
+// One container per week
+model Schedule {
+  id            String   @id @default(cuid())
+  weekStartDate DateTime @unique
+
+  shifts              Shift[]
+  departmentSchedules DepartmentSchedule[]
+}
+
+// Per-department posting status for a given week
+model DepartmentSchedule {
+  id           String         @id @default(cuid())
+  scheduleId   String
+  departmentId String
+  status       ScheduleStatus @default(DRAFT)
+  postedAt     DateTime?
+
+  schedule   Schedule   @relation(fields: [scheduleId], references: [id])
+  department Department @relation(fields: [departmentId], references: [id])
+
+  @@unique([scheduleId, departmentId])
+}
+
+// One shift = one date + label, shared across all departments
+model Shift {
+  id         String     @id @default(cuid())
+  scheduleId String
+  date       DateTime
+  label      ShiftLabel
+  startTime  String
+  endTime    String
+
+  schedule Schedule    @relation(fields: [scheduleId], references: [id])
+  slots    ShiftSlot[]
+
+  @@unique([scheduleId, date, label])
+}
+
+// One literal slot: empty (userId null) or filled by a worker.
+// Managers add/remove these rows manually — no stored default count.
+model ShiftSlot {
+  id           String  @id @default(cuid())
+  shiftId      String
+  departmentId String
+  userId       String?
+
+  shift      Shift      @relation(fields: [shiftId], references: [id])
+  department Department @relation(fields: [departmentId], references: [id])
+  user       User?      @relation(fields: [userId], references: [id])
+}
+
+// Per-shift-label availability, submitted before Shift rows exist for that week
+model Availability {
+  id        String     @id @default(cuid())
+  userId    String
+  date      DateTime
+  label     ShiftLabel
+  available Boolean    @default(true)
+  note      String?
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, date, label])
+}
