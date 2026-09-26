@@ -52,7 +52,7 @@ See `PROJECT_SPEC.md` in this repo root for the full data model (Prisma schema),
 - [x] Server scaffolding, auth + user routes (code)
 - [x] Neon database connected; initial migration `init` applied (all tables created)
 - [x] Seeded: 3 departments (Waiters, Hostesses, Bar), MORNING/EVENING templates, restaurant manager account (seed is idempotent — safe to re-run)
-- [ ] Smoke-test the API (login, `/me`)
+- [x] Smoke-tested the API: `/api/health`, login (success + 401/400 failures), `/me` with/without token. Note: opening `localhost:4000` itself shows "Cannot GET /" — expected, there is no route at `/`.
 - [ ] Client scaffolding + login / forced password-change screens
 
 ## Commands
