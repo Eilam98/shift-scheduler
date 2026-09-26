@@ -13,7 +13,9 @@ See `PROJECT_SPEC.md` in this repo root for the full data model (Prisma schema),
 - Auth: Custom JWT (no third-party auth library), passwords hashed with bcrypt 6
 
 ## Folder structure
-- `/client` — React frontend (not created yet)
+- `/client` — React frontend (Vite + React 19 + TS + Tailwind v4)
+  - `vite.config.ts` — proxies `/api` to `http://localhost:4000` in dev, so client code calls `fetch("/api/...")` with no host/port
+  - `src/main.tsx` entry → `src/App.tsx` root component; `src/index.css` just imports Tailwind
 - `/server` — Express API
   - `src/prisma/schema.prisma` — data model; `src/prisma/migrations/` — generated SQL migrations (committed, never edit by hand)
   - `src/prisma/seed.ts` — creates departments, shift templates, and the only restaurant manager (details from `.env`)
@@ -53,11 +55,13 @@ See `PROJECT_SPEC.md` in this repo root for the full data model (Prisma schema),
 - [x] Neon database connected; initial migration `init` applied (all tables created)
 - [x] Seeded: 3 departments (Waiters, Hostesses, Bar), MORNING/EVENING templates, restaurant manager account (seed is idempotent — safe to re-run)
 - [x] Smoke-tested the API: `/api/health`, login (success + 401/400 failures), `/me` with/without token. Note: opening `localhost:4000` itself shows "Cannot GET /" — expected, there is no route at `/`.
-- [ ] Client scaffolding + login / forced password-change screens
+- [x] Client scaffolding: `/client` created, Tailwind + `/api` proxy working (test page shows "Server connected")
+- [ ] Login screen + forced password-change screen (branch `feature/login`)
 
 ## Commands
 - `cd server && npm run dev` — start API
-- `cd client && npm run dev` — start frontend
+- `cd client && npm run dev` — start frontend on http://localhost:5173 (API must be running too)
+- `cd client && npm run build` / `npm run lint` — type-check + build / lint the client
 - `cd server && npx prisma migrate dev --name <name>` — create + apply a migration after changing the schema
 - `cd server && npx prisma db seed` — run the seed script
 - `cd server && npx prisma studio` — inspect DB visually
