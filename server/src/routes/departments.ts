@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma";
-import { authenticate } from "../middleware/auth";
+import { authenticate, requireDepartmentManager } from "../middleware/auth";
 
 const router = Router();
 
@@ -16,5 +16,22 @@ router.get("/", async (_req, res) => {
 
   return res.status(200).json({ departments });
 });
+
+// GET /api/departments/:id/members — who can be assigned to this department's slots.
+router.get(
+  "/:id/members",
+  requireDepartmentManager((req) => req.params.id as string),
+  async (req, res) => {
+    const memberships = await prisma.userDepartment.findMany({
+      where: { departmentId: req.params.id as string },
+      include: { user: { select: { id: true, name: true } } },
+      orderBy: { user: { name: "asc" } },
+    });
+
+    return res.status(200).json({
+      members: memberships.map((m) => ({ ...m.user, isManager: m.isManager })),
+    });
+  }
+);
 
 export default router;

@@ -67,29 +67,43 @@ export function requireRestaurantManager(req: Request, res: Response, next: Next
   next();
 }
 
+/** True if the user is the restaurant manager or manages this department. */
+export function canManageDepartment(user: AuthenticatedUser, departmentId: string): boolean {
+  return (
+    user.isRestaurantManager ||
+    user.departments.some((d) => d.departmentId === departmentId && d.isManager)
+  );
+}
+
 /**
  * Returns a middleware that allows the request through if the caller is
  * either the restaurant manager, or a department manager for the specific
- * departmentId resolved from the request (e.g. req.params.departmentId).
- * Reused later for Shift/ShiftSlot routes — see PROJECT_SPEC.md.
+ * departmentId resolved from the request (e.g. req.params.departmentId, or
+ * res.locals set by an earlier middleware that loaded a row from the DB).
  */
-export function requireDepartmentManager(getDepartmentId: (req: Request) => string) {
+export function requireDepartmentManager(
+  getDepartmentId: (req: Request, res: Response) => string
+) {
   return (req: Request, res: Response, next: NextFunction) => {
-    const departmentId = getDepartmentId(req);
     const user = req.user;
 
     if (!user) {
       return res.status(401).json({ error: "Not authenticated" });
     }
 
-    const isDeptManager = user.departments.some(
-      (d) => d.departmentId === departmentId && d.isManager
-    );
-
-    if (!user.isRestaurantManager && !isDeptManager) {
+    if (!canManageDepartment(user, getDepartmentId(req, res))) {
       return res.status(403).json({ error: "Department manager access required" });
     }
 
     next();
   };
+}
+
+/** Restaurant manager, or manager of at least one department. */
+export function requireAnyManager(req: Request, res: Response, next: NextFunction) {
+  const user = req.user;
+  if (!user?.isRestaurantManager && !user?.departments.some((d) => d.isManager)) {
+    return res.status(403).json({ error: "Manager access required" });
+  }
+  next();
 }

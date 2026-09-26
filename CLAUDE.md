@@ -15,20 +15,22 @@ See `PROJECT_SPEC.md` in this repo root for the full data model (Prisma schema),
 ## Folder structure
 - `/client` — React frontend (Vite + React 19 + TS + Tailwind v4)
   - `vite.config.ts` — proxies `/api` to `http://localhost:4000` in dev, so client code calls `fetch("/api/...")` with no host/port
-  - `src/main.tsx` entry (wraps the app in `BrowserRouter` + `AuthProvider`) → `src/App.tsx` gates: Login → ChangePassword (if `requiresPasswordChange`) → react-router `<Routes>` (`/` Home, `/workers` restaurant-manager only, redirects others to `/`)
+  - `src/main.tsx` entry (wraps the app in `BrowserRouter` + `AuthProvider`) → `src/App.tsx` gates: Login → ChangePassword (if `requiresPasswordChange`) → react-router `<Routes>` (`/` Home, `/workers` restaurant-manager only, `/schedule/:departmentId?week=YYYY-MM-DD` schedule editor/viewer)
   - `src/lib/api.ts` — `api<T>(path, {method, body})` fetch wrapper: adds the Bearer token, throws `ApiError` with the server's message. Use it for every API call.
   - `src/auth/` — `AuthProvider` (user state, login/logout/changePassword, restores session via `/me` on load) + `useAuth()` hook
   - `src/pages/` — one component per screen; `src/components/ui.tsx` — shared `Screen`, `Card`, `TextField`, `Button` (`variant="secondary"`), `ErrorMessage`
   - `src/components/DepartmentPicker.tsx` — member/manager picker per department (enforces ≤1 managed department in the UI); `AddWorkerForm.tsx`
+  - `src/pages/SchedulePage.tsx` + `src/components/ShiftCard.tsx` — week navigation, create week, add/remove slots, assign workers (read-only when `canEdit` is false)
+  - `src/lib/dates.ts` — "YYYY-MM-DD" date helpers (`currentWeekStart`, `addDays`, `formatDay`…) — never use `Date` objects for calendar dates
   - `src/lib/password.ts` — `PASSWORD_RULE`/`PASSWORD_HINT` (mirror the server rule) + `generateTemporaryPassword()`; `src/lib/roles.ts` — `roleLabel(user)`
   - `src/types.ts` — API response types (mirror the server's response shapes)
   - JWT stored in `localStorage` under `shift-organizer.token`
 - `/server` — Express API
   - `src/prisma/schema.prisma` — data model; `src/prisma/migrations/` — generated SQL migrations (committed, never edit by hand)
   - `src/prisma/seed.ts` — creates departments, shift templates, and the only restaurant manager (details from `.env`)
-  - `src/lib/` — shared helpers (`prisma.ts` client, `auth.ts` JWT/bcrypt/password rule)
-  - `src/middleware/auth.ts` — `authenticate`, `requireRestaurantManager`, `requireDepartmentManager`
-  - `src/routes/` — one router per resource: `auth.ts`, `users.ts` (restaurant manager only), `departments.ts` (`GET /api/departments`, any logged-in user)
+  - `src/lib/` — shared helpers (`prisma.ts` client, `auth.ts` JWT/bcrypt/password rule, `dates.ts` week/date parsing)
+  - `src/middleware/auth.ts` — `authenticate`, `requireRestaurantManager`, `requireDepartmentManager(getDepartmentId(req, res))` (use `res.locals` when the department comes from a DB row loaded by earlier middleware, see `routes/slots.ts`), `requireAnyManager`, `canManageDepartment`
+  - `src/routes/` — one router per resource: `auth.ts`, `users.ts` (restaurant manager only), `departments.ts` (`GET /api/departments` any logged-in user; `GET /:id/members` dept manager), `schedules.ts` (`POST /` create week, `GET /:weekStart/departments/:departmentId`), `shifts.ts` (`POST /:shiftId/slots`), `slots.ts` (`PATCH`/`DELETE /:id`)
 
 ## Environment (`server/.env`, gitignored — template in `server/.env.example`)
 - `DATABASE_URL` — Neon **pooled** connection string (host contains `-pooler`), used by the running app
@@ -45,6 +47,9 @@ See `PROJECT_SPEC.md` in this repo root for the full data model (Prisma schema),
 - Workers can view any department's schedule, but only once that department's DepartmentSchedule.status = POSTED
 - Availability is submitted per (date, shiftLabel), independent of Shift rows
 - Emails are stored and compared lowercase
+- Weeks run Sunday–Saturday (`WEEK_START_DAY` in server + client `lib/dates.ts`). Dates are stored as UTC midnight and sent as "YYYY-MM-DD"
+- Creating a week (any manager, idempotent) creates the Schedule, 14 Shifts from ShiftTemplate times, and a DRAFT DepartmentSchedule per department
+- A slot can only be filled by a member of its department, and a person can hold only one slot per shift across all departments
 
 ## Conventions
 - All API routes under `/api`, RESTful, prefixed by resource (`/api/shifts`, `/api/availability`)
@@ -66,7 +71,10 @@ See `PROJECT_SPEC.md` in this repo root for the full data model (Prisma schema),
 - [x] Login screen, forced password-change screen, session restore on refresh, logout
 - [x] Worker management (`/workers`, restaurant manager): list users, add worker with generated temporary password + departments, edit department assignments
 - [ ] Not built yet: delete/deactivate worker, edit name/email, reset a worker's password (no API yet)
-- [ ] Next: schedules — weeks, shifts, and slots per department (department managers), then availability
+- [x] Schedules part 1 — editor: create week, add/remove slots, assign workers (dept manager / restaurant manager)
+- [ ] Schedules part 2 — post/unpost a department week; workers see posted schedules ("My shifts" + browse departments)
+- [ ] Schedules part 3 — availability: workers submit per (date, label); managers see it when assigning
+- [ ] Later: edit a single shift's times (shared across departments — decide who may)
 - Testing tip: create temporary test users with `@example.test` emails and delete them afterwards (UserDepartment rows first) — never test with the real manager account
 
 ## Commands

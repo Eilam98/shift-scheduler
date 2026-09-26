@@ -1,12 +1,39 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { useAuth } from '../auth/authContext'
 import { Card, Screen } from '../components/ui'
+import { api } from '../lib/api'
 import { roleLabel } from '../lib/roles'
+import type { Department } from '../types'
 
-// Placeholder home screen until the schedule features exist.
+// Home: who you are, plus links to the screens your role can use.
 export function HomePage() {
   const { user, logout } = useAuth()
+  const [allDepartments, setAllDepartments] = useState<Department[]>([])
+  const isRestaurantManager = !!user?.isRestaurantManager
+
+  useEffect(() => {
+    if (!isRestaurantManager) return
+    let cancelled = false
+    api<{ departments: Department[] }>('/departments')
+      .then(({ departments }) => {
+        if (!cancelled) setAllDepartments(departments)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [isRestaurantManager])
+
   if (!user) return null
+
+  // Schedules this user can edit: every department for the restaurant manager,
+  // otherwise the one department they manage.
+  const editable: Department[] = user.isRestaurantManager
+    ? allDepartments
+    : user.departments
+        .filter((d) => d.isManager)
+        .map((d) => ({ id: d.departmentId, name: d.departmentName }))
 
   return (
     <Screen>
@@ -30,6 +57,23 @@ export function HomePage() {
           </ul>
         )}
       </Card>
+
+      {editable.length > 0 && (
+        <div className="mt-4 rounded-2xl bg-white p-6 shadow-sm">
+          <p className="font-semibold text-slate-900">Edit schedules</p>
+          <div className="mt-3 space-y-2">
+            {editable.map((d) => (
+              <Link
+                key={d.id}
+                to={`/schedule/${d.id}`}
+                className="block rounded-lg border border-slate-200 px-4 py-3 text-slate-900 hover:bg-slate-50"
+              >
+                {d.name} →
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {user.isRestaurantManager && (
         <Link

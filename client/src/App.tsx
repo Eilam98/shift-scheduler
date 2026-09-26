@@ -3,6 +3,7 @@ import { useAuth } from './auth/authContext'
 import { ChangePasswordPage } from './pages/ChangePasswordPage'
 import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
+import { SchedulePage } from './pages/SchedulePage'
 import { WorkersPage } from './pages/WorkersPage'
 
 function App() {
@@ -21,6 +22,7 @@ function App() {
         path="/workers"
         element={user.isRestaurantManager ? <WorkersPage /> : <Navigate to="/" replace />}
       />
+      <Route path="/schedule/:departmentId" element={<SchedulePage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

@@ -18,6 +18,41 @@ export interface UserListItem {
   departments: (DepartmentAssignment & { departmentName: string })[]
 }
 
+export type ShiftLabel = 'MORNING' | 'EVENING'
+export type ScheduleStatus = 'DRAFT' | 'POSTED'
+
+export interface Slot {
+  id: string
+  user: { id: string; name: string } | null
+}
+
+export interface Shift {
+  id: string
+  date: string // "YYYY-MM-DD"
+  label: ShiftLabel
+  startTime: string // "HH:mm"
+  endTime: string
+  slots: Slot[] // only this department's slots
+}
+
+// GET /api/schedules/:weekStart/departments/:departmentId (server/src/routes/schedules.ts)
+export interface DepartmentWeek {
+  schedule: { id: string; weekStartDate: string }
+  departmentId: string
+  departmentName: string
+  status: ScheduleStatus
+  postedAt: string | null
+  canEdit: boolean
+  shifts: Shift[]
+}
+
+// GET /api/departments/:id/members
+export interface Member {
+  id: string
+  name: string
+  isManager: boolean
+}
+
 // Mirrors the `user` object returned by /api/auth/login and /api/auth/me
 // (see toUserResponse in server/src/routes/auth.ts).
 export interface User {
