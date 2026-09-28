@@ -41,17 +41,17 @@ router.post("/login", async (req, res) => {
   });
 
   if (!user) {
-    return res.status(401).json({ error: "Invalid email or password" });
+    return res.status(401).json({ error: "Invalid email or password", code: "INVALID_CREDENTIALS" });
   }
 
   const passwordOk = await comparePassword(password, user.passwordHash);
   if (!passwordOk) {
-    return res.status(401).json({ error: "Invalid email or password" });
+    return res.status(401).json({ error: "Invalid email or password", code: "INVALID_CREDENTIALS" });
   }
 
   // Checked after the password, so it doesn't reveal which emails exist.
   if (!user.isActive) {
-    return res.status(403).json({ error: "This account has been deactivated" });
+    return res.status(403).json({ error: "This account has been deactivated", code: "ACCOUNT_DEACTIVATED" });
   }
 
   const token = signToken({ userId: user.id });
@@ -88,7 +88,10 @@ router.patch("/password", authenticate, async (req, res) => {
   if (!isValidPassword(newPassword)) {
     return res
       .status(400)
-      .json({ error: "New password must be at least 8 characters and include a letter and a number" });
+      .json({
+        error: "New password must be at least 8 characters and include a letter and a number",
+        code: "INVALID_PASSWORD",
+      });
   }
 
   const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
@@ -98,7 +101,7 @@ router.patch("/password", authenticate, async (req, res) => {
 
   const currentOk = await comparePassword(currentPassword, user.passwordHash);
   if (!currentOk) {
-    return res.status(401).json({ error: "Current password is incorrect" });
+    return res.status(401).json({ error: "Current password is incorrect", code: "WRONG_CURRENT_PASSWORD" });
   }
 
   const passwordHash = await hashPassword(newPassword);
@@ -108,6 +111,26 @@ router.patch("/password", authenticate, async (req, res) => {
   });
 
   return res.status(200).json({ success: true });
+});
+
+const languageSchema = z.object({
+  language: z.enum(["HE", "EN"]).nullable(), // null = use the restaurant default
+});
+
+// PATCH /api/auth/language — the logged-in user's own language preference.
+router.patch("/language", authenticate, async (req, res) => {
+  const parsed = languageSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "language must be HE, EN or null" });
+  }
+
+  const user = await prisma.user.update({
+    where: { id: req.user!.id },
+    data: { language: parsed.data.language },
+    include: departmentRolesInclude,
+  });
+
+  return res.status(200).json({ user: toUserResponse(user) });
 });
 
 export default router;

@@ -45,7 +45,9 @@ router.patch("/:id", ...canEditSlot, async (req: Request, res: Response) => {
       include: { user: true },
     });
     if (!membership || !membership.user.isActive) {
-      return res.status(400).json({ error: "That worker isn't in this department" });
+      return res
+        .status(400)
+        .json({ error: "That worker isn't in this department", code: "NOT_IN_DEPARTMENT" });
     }
 
     const clash = await prisma.shiftSlot.findFirst({
@@ -55,6 +57,8 @@ router.patch("/:id", ...canEditSlot, async (req: Request, res: Response) => {
     if (clash) {
       return res.status(409).json({
         error: `${clash.user!.name} already works this shift (${clash.department.name})`,
+        code: "ALREADY_IN_SHIFT",
+        params: { name: clash.user!.name, department: clash.department.name },
       });
     }
   }

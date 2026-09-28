@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { ApiError, api, getToken, setToken } from '../lib/api'
-import type { User } from '../types'
+import type { Language, User } from '../types'
 import { AuthContext, type AuthState } from './authContext'
 
 /**
@@ -59,9 +59,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     []
   )
 
+  const saveLanguage = useCallback(async (language: Language | null) => {
+    const { user } = await api<{ user: User }>('/auth/language', {
+      method: 'PATCH',
+      body: { language },
+    })
+    setUser(user)
+  }, [])
+
   const value = useMemo<AuthState>(
-    () => ({ user, loading, login, logout, changePassword }),
-    [user, loading, login, logout, changePassword]
+    () => ({ user, loading, login, logout, changePassword, saveLanguage }),
+    [user, loading, login, logout, changePassword, saveLanguage]
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

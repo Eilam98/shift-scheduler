@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router'
 import { AddWorkerForm } from '../components/AddWorkerForm'
 import { DepartmentPicker } from '../components/DepartmentPicker'
 import { Button, Card, ErrorMessage, Screen } from '../components/ui'
+import { useI18n } from '../i18n/i18nContext'
 import { api } from '../lib/api'
 import { roleLabel } from '../lib/roles'
 import type { Department, DepartmentRolesInput, UserListItem } from '../types'
@@ -11,6 +11,7 @@ type Created = { name: string; email: string; temporaryPassword: string }
 
 /** Restaurant manager only: list everyone, add workers, edit department assignments. */
 export function WorkersPage() {
+  const { t, errorMessage } = useI18n()
   const [users, setUsers] = useState<UserListItem[]>([])
   const [departments, setDepartments] = useState<Department[]>([])
   const [loading, setLoading] = useState(true)
@@ -31,7 +32,7 @@ export function WorkersPage() {
         setDepartments(d.departments)
       })
       .catch((err) => {
-        if (!cancelled) setLoadError(err instanceof Error ? err.message : 'Could not load workers')
+        if (!cancelled) setLoadError(errorMessage(err))
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -39,44 +40,37 @@ export function WorkersPage() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [errorMessage])
 
   function replaceUser(updated: UserListItem) {
     setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)))
   }
 
   return (
-    <Screen>
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-900">Workers</h1>
-        <Link to="/" className="text-sm font-medium text-indigo-600">
-          ← Home
-        </Link>
-      </div>
-
-      {loading && <p className="text-slate-500">Loading…</p>}
+    <Screen title={t('workers.title')}>
+      {loading && <p className="text-slate-500">{t('common.loading')}</p>}
       {loadError && <ErrorMessage>{loadError}</ErrorMessage>}
 
       {created && (
         <div className="mb-4 rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-900">
-          <p className="font-semibold">{created.name} was added.</p>
-          <p className="mt-1">Share these login details with them:</p>
-          <p className="mt-2 font-mono break-all">
+          <p className="font-semibold">{t('workers.added', { name: created.name })}</p>
+          <p className="mt-1">{t('workers.shareDetails')}</p>
+          <p className="mt-2 font-mono break-all" dir="ltr">
             {created.email}
             <br />
             {created.temporaryPassword}
           </p>
-          <p className="mt-2">They'll choose their own password on first login.</p>
+          <p className="mt-2">{t('workers.firstLogin')}</p>
           <button onClick={() => setCreated(null)} className="mt-3 font-medium underline">
-            Done
+            {t('common.done')}
           </button>
         </div>
       )}
 
       {!loading && !loadError && (
-        <div className="space-y-3">
+        <div className="grid gap-3 lg:grid-cols-2">
           {adding ? (
-            <Card>
+            <Card className="lg:col-span-2">
               <AddWorkerForm
                 departments={departments}
                 onCancel={() => setAdding(false)}
@@ -91,13 +85,14 @@ export function WorkersPage() {
             </Card>
           ) : (
             <Button
+              className="lg:col-span-2 lg:w-auto lg:justify-self-start"
               onClick={() => {
                 setAdding(true)
                 setEditingId(null)
                 setCreated(null)
               }}
             >
-              + Add worker
+              {t('workers.add')}
             </Button>
           )}
 
@@ -135,20 +130,23 @@ export function WorkersPage() {
 }
 
 function WorkerCard({ user, onEdit }: { user: UserListItem; onEdit?: () => void }) {
+  const { t, departmentName } = useI18n()
   return (
     <Card>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="font-semibold text-slate-900">{user.name}</p>
-          <p className="truncate text-sm text-slate-500">{user.email}</p>
+          <p className="truncate text-sm text-slate-500" dir="ltr">
+            {user.email}
+          </p>
           <p className="mt-1 text-xs font-medium tracking-wide text-indigo-700 uppercase">
-            {roleLabel(user)}
-            {!user.isActive && <span className="ms-2 text-slate-500">· Inactive</span>}
+            {t(roleLabel(user))}
+            {!user.isActive && <span className="ms-2 text-slate-500">· {t('workers.inactive')}</span>}
           </p>
         </div>
         {onEdit && (
           <button onClick={onEdit} className="shrink-0 text-sm font-medium text-indigo-600">
-            Edit
+            {t('common.edit')}
           </button>
         )}
       </div>
@@ -159,12 +157,14 @@ function WorkerCard({ user, onEdit }: { user: UserListItem; onEdit?: () => void 
               key={m.departmentId}
               className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700"
             >
-              {m.departmentName}
+              {departmentName(m.departmentName)}
             </span>
           ))}
           {user.managedDepartment && (
             <span className="rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-medium text-indigo-800">
-              Manages {user.managedDepartment.departmentName}
+              {t('workers.managesChip', {
+                department: departmentName(user.managedDepartment.departmentName),
+              })}
             </span>
           )}
         </div>
@@ -184,6 +184,7 @@ function EditDepartmentsCard({
   onSaved: (user: UserListItem) => void
   onCancel: () => void
 }) {
+  const { t, errorMessage } = useI18n()
   const [roles, setRoles] = useState<DepartmentRolesInput>(() => ({
     memberDepartmentIds: user.memberships.map((m) => m.departmentId),
     managedDepartmentId: user.managedDepartment?.departmentId ?? null,
@@ -201,14 +202,14 @@ function EditDepartmentsCard({
       })
       onSaved(updated)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not save')
+      setError(errorMessage(err))
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <Card>
+    <Card className="lg:col-span-2">
       <p className="mb-3 font-semibold text-slate-900">{user.name}</p>
       <DepartmentPicker departments={departments} value={roles} onChange={setRoles} />
       {error && (
@@ -218,10 +219,10 @@ function EditDepartmentsCard({
       )}
       <div className="mt-4 flex gap-2">
         <Button variant="secondary" onClick={onCancel}>
-          Cancel
+          {t('common.cancel')}
         </Button>
         <Button onClick={save} disabled={saving}>
-          {saving ? 'Saving…' : 'Save'}
+          {saving ? t('common.saving') : t('common.save')}
         </Button>
       </div>
     </Card>

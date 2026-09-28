@@ -33,21 +33,25 @@ export function isWeekStart(value: string | null): value is string {
   return toDateString(date) === value && date.getUTCDay() === WEEK_START_DAY
 }
 
-const dayFormat = new Intl.DateTimeFormat('en-GB', {
-  weekday: 'long',
-  day: 'numeric',
-  month: 'short',
-  timeZone: 'UTC',
-})
-const shortFormat = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+// `locale` comes from useI18n() ("he-IL" / "en-GB"). timeZone UTC because the
+// Date objects here are UTC midnights standing for calendar dates.
 
-/** "Sunday 6 Jan" */
-export function formatDay(value: string): string {
-  return dayFormat.format(fromDateString(value))
+/** "Sunday 6 Jan" / "יום ראשון, 6 בינו׳" */
+export function formatDay(value: string, locale: string): string {
+  return new Intl.DateTimeFormat(locale, {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+  }).format(fromDateString(value))
 }
 
-/** "6 Jan – 12 Jan 2030" */
-export function formatWeekRange(weekStart: string): string {
-  const end = addDays(weekStart, 6)
-  return `${shortFormat.format(fromDateString(weekStart))} – ${shortFormat.format(fromDateString(end))} ${end.slice(0, 4)}`
+/** "6–12 Jan 2030" — Intl picks the right range format for the language. */
+export function formatWeekRange(weekStart: string, locale: string): string {
+  return new Intl.DateTimeFormat(locale, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).formatRange(fromDateString(weekStart), fromDateString(addDays(weekStart, 6)))
 }

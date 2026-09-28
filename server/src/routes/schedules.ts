@@ -103,7 +103,9 @@ router.get("/:weekStart/departments/:departmentId", async (req, res) => {
 
   const canEdit = canManageDepartment(req.user!, departmentId);
   if (!canEdit && departmentSchedule.status !== "POSTED") {
-    return res.status(403).json({ error: "This schedule hasn't been posted yet" });
+    return res
+      .status(403)
+      .json({ error: "This schedule hasn't been posted yet", code: "SCHEDULE_NOT_POSTED" });
   }
 
   return res.status(200).json({

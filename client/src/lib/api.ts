@@ -11,17 +11,21 @@ export function setToken(token: string | null) {
 
 export class ApiError extends Error {
   status: number
+  code?: string // stable id for errors the UI translates (see errorMessage in i18n)
+  params?: Record<string, string>
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, code?: string, params?: Record<string, string>) {
     super(message)
     this.status = status
+    this.code = code
+    this.params = params
   }
 }
 
 /**
  * Calls the Express API (proxied to /api by Vite in dev). Sends the stored
  * JWT as a Bearer token, JSON-encodes the body, and throws ApiError with
- * the server's `error` message on any non-2xx response.
+ * the server's `error` message (and `code`, if any) on any non-2xx response.
  */
 export async function api<T>(
   path: string,
@@ -40,7 +44,7 @@ export async function api<T>(
 
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
-    throw new ApiError(res.status, data.error ?? 'Something went wrong')
+    throw new ApiError(res.status, data.error ?? 'Something went wrong', data.code, data.params)
   }
   return data as T
 }

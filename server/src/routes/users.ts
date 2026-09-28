@@ -72,7 +72,10 @@ router.post("/", async (req, res) => {
   if (!isValidPassword(temporaryPassword)) {
     return res
       .status(400)
-      .json({ error: "Temporary password must be at least 8 characters and include a letter and a number" });
+      .json({
+        error: "Temporary password must be at least 8 characters and include a letter and a number",
+        code: "INVALID_PASSWORD",
+      });
   }
 
   const departmentError = await validateDepartmentRoles(parsed.data);
@@ -82,7 +85,7 @@ router.post("/", async (req, res) => {
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
-    return res.status(409).json({ error: "A user with this email already exists" });
+    return res.status(409).json({ error: "A user with this email already exists", code: "EMAIL_TAKEN" });
   }
 
   const passwordHash = await hashPassword(temporaryPassword);

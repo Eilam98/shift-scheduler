@@ -1,9 +1,8 @@
 import { useState } from 'react'
+import { useI18n } from '../i18n/i18nContext'
 import { api } from '../lib/api'
 import type { Member, Shift, Slot } from '../types'
 import { ErrorMessage } from './ui'
-
-const LABELS = { MORNING: 'Morning', EVENING: 'Evening' } as const
 
 /**
  * One shift for one department. Managers add/remove slots and pick who fills
@@ -22,8 +21,10 @@ export function ShiftCard({
   members: Member[]
   onSlotsChange: (slots: Slot[]) => void
 }) {
+  const { t, errorMessage } = useI18n()
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const label = t(`shift.${shift.label}`)
 
   async function run(action: () => Promise<Slot[]>) {
     setError(null)
@@ -31,7 +32,7 @@ export function ShiftCard({
     try {
       onSlotsChange(await action())
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong')
+      setError(errorMessage(err))
     } finally {
       setBusy(false)
     }
@@ -65,15 +66,15 @@ export function ShiftCard({
   return (
     <div className="rounded-xl border border-slate-200 p-3">
       <div className="flex items-baseline justify-between">
-        <p className="font-medium text-slate-900">{LABELS[shift.label]}</p>
-        <p className="text-sm text-slate-500">
+        <p className="font-medium text-slate-900">{label}</p>
+        <p className="text-sm text-slate-500" dir="ltr">
           {shift.startTime}–{shift.endTime}
           {shift.slots.length > 0 && ` · ${filled}/${shift.slots.length}`}
         </p>
       </div>
 
       {shift.slots.length === 0 && (
-        <p className="mt-2 text-sm text-slate-400">{canEdit ? 'No slots yet' : 'Nobody scheduled'}</p>
+        <p className="mt-2 text-sm text-slate-400">{canEdit ? t('shift.noSlots') : t('shift.nobody')}</p>
       )}
 
       <ul className="mt-2 space-y-2">
@@ -82,13 +83,13 @@ export function ShiftCard({
             {canEdit ? (
               <>
                 <select
-                  aria-label={`${LABELS[shift.label]} slot`}
-                  className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-base text-slate-900"
+                  aria-label={t('shift.slot', { shift: label })}
+                  className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-2 py-2 text-base text-slate-900 2xl:text-sm"
                   value={slot.user?.id ?? ''}
                   disabled={busy}
                   onChange={(e) => assign(slot.id, e.target.value || null)}
                 >
-                  <option value="">— Empty —</option>
+                  <option value="">{t('shift.empty')}</option>
                   {members.map((m) => (
                     <option
                       key={m.id}
@@ -100,17 +101,17 @@ export function ShiftCard({
                   ))}
                 </select>
                 <button
-                  aria-label="Remove slot"
+                  aria-label={t('shift.removeSlot')}
                   disabled={busy}
                   onClick={() => removeSlot(slot.id)}
-                  className="shrink-0 rounded-lg px-3 py-2 text-slate-400 hover:bg-slate-100 hover:text-red-600"
+                  className="shrink-0 rounded-lg px-2 py-2 text-slate-400 hover:bg-slate-100 hover:text-red-600"
                 >
                   ✕
                 </button>
               </>
             ) : (
               <span className={slot.user ? 'text-slate-900' : 'text-slate-400'}>
-                {slot.user?.name ?? 'Open slot'}
+                {slot.user?.name ?? t('shift.open')}
               </span>
             )}
           </li>
@@ -129,7 +130,7 @@ export function ShiftCard({
           onClick={addSlot}
           className="mt-2 text-sm font-medium text-indigo-600 disabled:opacity-60"
         >
-          + Add slot
+          {t('shift.addSlot')}
         </button>
       )}
     </div>

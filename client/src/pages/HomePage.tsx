@@ -1,14 +1,17 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { useAuth } from '../auth/authContext'
+import { ChevronEndIcon } from '../components/icons'
 import { Card, Screen } from '../components/ui'
+import { useI18n } from '../i18n/i18nContext'
 import { api } from '../lib/api'
 import { roleLabel } from '../lib/roles'
 import type { Department } from '../types'
 
-// Home: who you are, plus links to the screens your role can use.
+// Home: who you are, plus shortcuts to the schedules you can edit.
 export function HomePage() {
-  const { user, logout } = useAuth()
+  const { user } = useAuth()
+  const { t, departmentName } = useI18n()
   const [allDepartments, setAllDepartments] = useState<Department[]>([])
   const isRestaurantManager = !!user?.isRestaurantManager
 
@@ -36,54 +39,42 @@ export function HomePage() {
       : []
 
   return (
-    <Screen>
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-900">Shift Organizer</h1>
-        <button onClick={logout} className="text-sm font-medium text-indigo-600">
-          Log out
-        </button>
+    <Screen title={t('app.name')}>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <p className="text-lg text-slate-900">{t('home.welcome', { name: user.name })}</p>
+          <p className="mt-1 text-sm text-slate-500">{t(roleLabel(user))}</p>
+          {user.memberships.length > 0 && (
+            <p className="mt-4 text-sm text-slate-700">
+              {t('department.worksIn')}:{' '}
+              {user.memberships.map((m) => departmentName(m.departmentName)).join(', ')}
+            </p>
+          )}
+          {user.managedDepartment && (
+            <p className="mt-1 text-sm text-slate-700">
+              {t('department.manages')}: {departmentName(user.managedDepartment.departmentName)}
+            </p>
+          )}
+        </Card>
+
+        {editable.length > 0 && (
+          <Card>
+            <p className="font-semibold text-slate-900">{t('home.editSchedules')}</p>
+            <div className="mt-3 space-y-2">
+              {editable.map((d) => (
+                <Link
+                  key={d.id}
+                  to={`/schedule/${d.id}`}
+                  className="flex items-center justify-between rounded-lg border border-slate-200 px-4 py-3 text-slate-900 hover:bg-slate-50"
+                >
+                  {departmentName(d.name)}
+                  <ChevronEndIcon className="size-5 text-slate-400" />
+                </Link>
+              ))}
+            </div>
+          </Card>
+        )}
       </div>
-      <Card>
-        <p className="text-lg text-slate-900">Welcome, {user.name}</p>
-        <p className="mt-1 text-sm text-slate-500">{roleLabel(user)}</p>
-        {user.memberships.length > 0 && (
-          <p className="mt-4 text-sm text-slate-700">
-            Works in: {user.memberships.map((m) => m.departmentName).join(', ')}
-          </p>
-        )}
-        {user.managedDepartment && (
-          <p className="mt-1 text-sm text-slate-700">
-            Manages: {user.managedDepartment.departmentName}
-          </p>
-        )}
-      </Card>
-
-      {editable.length > 0 && (
-        <div className="mt-4 rounded-2xl bg-white p-6 shadow-sm">
-          <p className="font-semibold text-slate-900">Edit schedules</p>
-          <div className="mt-3 space-y-2">
-            {editable.map((d) => (
-              <Link
-                key={d.id}
-                to={`/schedule/${d.id}`}
-                className="block rounded-lg border border-slate-200 px-4 py-3 text-slate-900 hover:bg-slate-50"
-              >
-                {d.name} →
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {user.isRestaurantManager && (
-        <Link
-          to="/workers"
-          className="mt-4 block rounded-2xl bg-white p-6 shadow-sm hover:bg-slate-50"
-        >
-          <p className="font-semibold text-slate-900">Manage workers →</p>
-          <p className="mt-1 text-sm text-slate-500">Add workers and assign their departments</p>
-        </Link>
-      )}
     </Screen>
   )
 }

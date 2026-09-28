@@ -152,13 +152,13 @@ Every page works on **phone** (single column, bottom tab bar) and **desktop** (s
 
 **Everyone**
 1. **Login** ✅
-2. **Change password** ✅ — forced on first login; also from Profile
+2. **Change password** ✅ — forced on first login; also from Profile (`/profile/password`)
 3. **Home** — my next shifts, availability deadline countdown; managers: to-dos (weeks not posted, missing availability, flagged clock-ins)
 4. **My shifts** — upcoming and past shifts, department, times
 5. **Team schedule** — any department's *posted* week, all names, week navigation
 6. **Availability** — next week's 14 shifts, can/can't + note; locked after the deadline
 8. **My hours & earnings** — monthly: hours per department, fixed pay, tip shares, top-up, bonus, total
-9. **Profile** — language, change password, my details
+9. **Profile** ✅ — language, change password, my details
 
 **Department managers** (restaurant manager: all departments)
 
@@ -188,7 +188,7 @@ Every page works on **phone** (single column, bottom tab bar) and **desktop** (s
 ## Build order
 1. ✅ Scaffolding, database, seed, auth, worker management, schedule editor.
 2. ✅ **Data model v2:** `DepartmentMembership` + `DepartmentManager` (migrate existing data), Shift Managers department, `DepartmentPayRate`, `RestaurantSettings`, `User.isActive/language/pinHash`. Update auth `user` shape, middleware and the Workers page.
-3. **App shell:** i18n (HE default + EN, RTL), responsive navigation (bottom tabs on phone, side menu on desktop). Convert existing pages.
+3. ✅ **App shell:** i18n (HE default + EN, RTL), responsive navigation (bottom tabs on phone, side menu on desktop). Convert existing pages.
 4. **Posting + Team schedule + My shifts.**
 5. **Availability** with deadline (+ Restaurant settings page).
 6. **Time clock station + Attendance** (PIN, flagged entries).
@@ -212,6 +212,9 @@ Every page works on **phone** (single column, bottom tab bar) and **desktop** (s
 - **POST /api/auth/login** `{ email, password }` → 200 `{ token, user }` · 401 `{ error: "Invalid email or password" }`
 - **GET /api/auth/me** → `{ user }`
 - **PATCH /api/auth/password** `{ currentPassword, newPassword }` → `{ success: true }`, clears `requiresPasswordChange`
+- **PATCH /api/auth/language** `{ language: "HE" | "EN" | null }` → `{ user }` (null = restaurant default)
+- **GET /api/settings/public** (no login) → `{ defaultLanguage }` — used by the login screen
+- Errors the UI shows carry a stable `code` for translation: `INVALID_CREDENTIALS`, `ACCOUNT_DEACTIVATED`, `INVALID_PASSWORD`, `WRONG_CURRENT_PASSWORD`, `EMAIL_TAKEN`, `NOT_IN_DEPARTMENT`, `ALREADY_IN_SHIFT` (`params: { name, department }`), `SCHEDULE_NOT_POSTED`
 - `user` shape: `{ id, name, email, isRestaurantManager, requiresPasswordChange, language, memberships: [{ departmentId, departmentName }], managedDepartment: { departmentId, departmentName } | null }`.
 - Login of a deactivated user (`isActive: false`) → 403 (checked after the password); their existing tokens get 401.
 - User management, departments, schedules, shifts and slots routes: see CLAUDE.md "Folder structure".
@@ -220,3 +223,5 @@ Every page works on **phone** (single column, bottom tab bar) and **desktop** (s
 - `startTime`/`endTime` stored as `"HH:mm"` strings — fine for fixed morning/evening shifts; would move to real time arithmetic for overlap detection.
 - Slot capacity has no DB-level enforcement — enforced in the Express route layer.
 - Single restaurant (no `Restaurant` table / multi-tenancy).
+- Department names are stored once (English) and translated client-side for the seeded names; renamed/new departments show as typed.
+- Desktop schedule shows the full 7-day grid only on very wide screens (`2xl`); narrower desktops use 2–4 day columns so slot pickers stay usable.

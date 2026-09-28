@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
+import { useI18n } from '../i18n/i18nContext'
 import { api } from '../lib/api'
-import { PASSWORD_HINT, PASSWORD_RULE, generateTemporaryPassword } from '../lib/password'
+import { PASSWORD_RULE, generateTemporaryPassword } from '../lib/password'
 import type { Department, DepartmentRolesInput, UserListItem } from '../types'
 import { DepartmentPicker } from './DepartmentPicker'
 import { Button, ErrorMessage, TextField } from './ui'
@@ -14,6 +15,7 @@ export function AddWorkerForm({
   onCreated: (user: UserListItem, temporaryPassword: string) => void
   onCancel: () => void
 }) {
+  const { t, errorMessage } = useI18n()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [temporaryPassword, setTemporaryPassword] = useState(generateTemporaryPassword)
@@ -27,7 +29,7 @@ export function AddWorkerForm({
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setError(null)
-    if (!PASSWORD_RULE.test(temporaryPassword)) return setError(PASSWORD_HINT)
+    if (!PASSWORD_RULE.test(temporaryPassword)) return setError(t('password.hint'))
 
     setSubmitting(true)
     try {
@@ -37,7 +39,7 @@ export function AddWorkerForm({
       })
       onCreated(user, temporaryPassword)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not create worker')
+      setError(errorMessage(err))
     } finally {
       setSubmitting(false)
     }
@@ -45,18 +47,19 @@ export function AddWorkerForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <h2 className="text-lg font-semibold text-slate-900">Add worker</h2>
+      <h2 className="text-lg font-semibold text-slate-900">{t('workers.addTitle')}</h2>
       <TextField
-        label="Full name"
+        label={t('workers.fullName')}
         autoComplete="off"
         required
         value={name}
         onChange={(e) => setName(e.target.value)}
       />
       <TextField
-        label="Email"
+        label={t('common.email')}
         type="email"
         inputMode="email"
+        dir="ltr"
         autoComplete="off"
         required
         value={email}
@@ -65,7 +68,8 @@ export function AddWorkerForm({
       <div className="flex items-end gap-2">
         <div className="flex-1">
           <TextField
-            label="Temporary password"
+            label={t('password.temporary')}
+            dir="ltr"
             autoComplete="off"
             required
             value={temporaryPassword}
@@ -78,17 +82,17 @@ export function AddWorkerForm({
           className="w-auto! py-2.5!"
           onClick={() => setTemporaryPassword(generateTemporaryPassword())}
         >
-          New
+          {t('workers.newPassword')}
         </Button>
       </div>
       <DepartmentPicker departments={departments} value={roles} onChange={setRoles} />
       {error && <ErrorMessage>{error}</ErrorMessage>}
       <div className="flex gap-2">
         <Button type="button" variant="secondary" onClick={onCancel}>
-          Cancel
+          {t('common.cancel')}
         </Button>
         <Button type="submit" disabled={submitting}>
-          {submitting ? 'Adding…' : 'Add worker'}
+          {submitting ? t('workers.adding') : t('workers.addTitle')}
         </Button>
       </div>
     </form>

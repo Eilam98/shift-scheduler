@@ -1,8 +1,38 @@
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
 
-// Small shared building blocks so every screen looks consistent on mobile.
+// Small shared building blocks so every screen looks consistent. Mobile-first;
+// direction-neutral classes (ms/me/ps/pe, start/end) so RTL works.
 
-export function Screen({ children }: { children: ReactNode }) {
+/**
+ * Page content inside the app shell: a title row and a centred column.
+ * `wide` lets desktop layouts (e.g. the week grid) use the full width.
+ */
+export function Screen({
+  title,
+  actions,
+  wide = false,
+  children,
+}: {
+  title?: ReactNode
+  actions?: ReactNode
+  wide?: boolean
+  children: ReactNode
+}) {
+  return (
+    <div className={`mx-auto px-4 py-6 md:px-8 md:py-10 ${wide ? 'max-w-screen-2xl' : 'max-w-3xl'}`}>
+      {title && (
+        <div className="mb-6 flex items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold text-slate-900">{title}</h1>
+          {actions}
+        </div>
+      )}
+      {children}
+    </div>
+  )
+}
+
+/** Full-page narrow column without navigation (login, forced password change). */
+export function CenteredScreen({ children }: { children: ReactNode }) {
   return (
     <main className="min-h-dvh bg-slate-50 px-4 py-10">
       <div className="mx-auto max-w-md">{children}</div>
@@ -10,8 +40,8 @@ export function Screen({ children }: { children: ReactNode }) {
   )
 }
 
-export function Card({ children }: { children: ReactNode }) {
-  return <div className="rounded-2xl bg-white p-6 shadow-sm">{children}</div>
+export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return <div className={`rounded-2xl bg-white p-6 shadow-sm ${className}`}>{children}</div>
 }
 
 export function TextField({

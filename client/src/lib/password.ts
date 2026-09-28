@@ -1,6 +1,5 @@
 // Same rule the server enforces (isValidPassword in server/src/lib/auth.ts).
 export const PASSWORD_RULE = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/
-export const PASSWORD_HINT = 'At least 8 characters, with at least one letter and one number.'
 
 // No look-alike characters (0/O, 1/l/I) — these get read out or typed by hand.
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'
