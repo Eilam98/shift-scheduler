@@ -2,66 +2,73 @@ import { useI18n } from '../i18n/i18nContext'
 import type { Department, DepartmentRolesInput } from '../types'
 
 /**
- * Choose which departments a user works in, and separately which one (at
- * most) they manage. The two are independent: a manager doesn't have to work
- * in the department they manage (PROJECT_SPEC.md "Roles").
+ * Per department: does this user work in it, and do they manage it? The two
+ * are independent. A user can manage several departments, but a department
+ * has at most one manager — departments managed by someone else are locked
+ * (mirrors validateDepartmentRoles in server/src/routes/users.ts).
  */
 export function DepartmentPicker({
   departments,
   value,
   onChange,
+  otherManagers,
 }: {
   departments: Department[]
   value: DepartmentRolesInput
   onChange: (value: DepartmentRolesInput) => void
+  /** departmentId → name of the person (other than this user) who manages it */
+  otherManagers: Map<string, string>
 }) {
   const { t, departmentName } = useI18n()
 
-  function toggleMember(departmentId: string, member: boolean) {
+  function toggle(list: 'memberDepartmentIds' | 'managedDepartmentIds', id: string, on: boolean) {
     onChange({
       ...value,
-      memberDepartmentIds: member
-        ? [...value.memberDepartmentIds, departmentId]
-        : value.memberDepartmentIds.filter((id) => id !== departmentId),
+      [list]: on ? [...value[list], id] : value[list].filter((d) => d !== id),
     })
   }
 
   return (
-    <div className="space-y-4">
-      <fieldset className="space-y-2">
-        <legend className="text-sm font-medium text-slate-700">{t('picker.worksIn')}</legend>
-        {departments.map((dept) => (
-          <label
+    <fieldset className="space-y-2">
+      <legend className="text-sm font-medium text-slate-700">{t('picker.departments')}</legend>
+      {departments.map((dept) => {
+        const otherManager = otherManagers.get(dept.id)
+        return (
+          <div
             key={dept.id}
-            className="flex items-center gap-3 rounded-lg border border-slate-200 px-3 py-2.5 text-base text-slate-900"
+            className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-lg border border-slate-200 px-3 py-2.5"
           >
-            <input
-              type="checkbox"
-              className="size-5 accent-indigo-600"
-              checked={value.memberDepartmentIds.includes(dept.id)}
-              onChange={(e) => toggleMember(dept.id, e.target.checked)}
-            />
-            {departmentName(dept.name)}
-          </label>
-        ))}
-      </fieldset>
-
-      <label className="block">
-        <span className="text-sm font-medium text-slate-700">{t('picker.manages')}</span>
-        <select
-          className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-base text-slate-900"
-          value={value.managedDepartmentId ?? ''}
-          onChange={(e) => onChange({ ...value, managedDepartmentId: e.target.value || null })}
-        >
-          <option value="">{t('picker.noDepartment')}</option>
-          {departments.map((dept) => (
-            <option key={dept.id} value={dept.id}>
-              {departmentName(dept.name)}
-            </option>
-          ))}
-        </select>
-        <span className="mt-1 block text-xs text-slate-500">{t('picker.hint')}</span>
-      </label>
-    </div>
+            <span className="font-medium text-slate-900">{departmentName(dept.name)}</span>
+            <div className="flex items-center gap-4 text-sm text-slate-700">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  className="size-5 accent-indigo-600"
+                  checked={value.memberDepartmentIds.includes(dept.id)}
+                  onChange={(e) => toggle('memberDepartmentIds', dept.id, e.target.checked)}
+                />
+                {t('picker.worksHere')}
+              </label>
+              {otherManager ? (
+                <span className="text-xs text-slate-500">
+                  {t('picker.managedBy', { name: otherManager })}
+                </span>
+              ) : (
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    className="size-5 accent-indigo-600"
+                    checked={value.managedDepartmentIds.includes(dept.id)}
+                    onChange={(e) => toggle('managedDepartmentIds', dept.id, e.target.checked)}
+                  />
+                  {t('picker.manager')}
+                </label>
+              )}
+            </div>
+          </div>
+        )
+      })}
+      <p className="text-xs text-slate-500">{t('picker.hint')}</p>
+    </fieldset>
   )
 }

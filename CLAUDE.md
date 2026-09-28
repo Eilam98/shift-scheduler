@@ -17,13 +17,14 @@ One restaurant · responsive **desktop + phone** (PWA) · **Hebrew default (RTL)
 ## Folder structure
 - `/client` — React frontend (Vite + React 19 + TS + Tailwind v4)
   - `vite.config.ts` — proxies `/api` to `http://localhost:4000` in dev, so client code calls `fetch("/api/...")` with no host/port
-  - `src/main.tsx` entry (wraps the app in `BrowserRouter` + `AuthProvider` + `I18nProvider`) → `src/App.tsx` gates: Login → ForcedPasswordChange (if `requiresPasswordChange`) → react-router `<Routes>` nested in `AppShell` (`/` Home, `/schedule/:departmentId?` + `?week=YYYY-MM-DD` schedule editor/viewer — no id redirects to the managed/first department, `/workers` restaurant-manager only, `/profile`, `/profile/password`)
+  - `src/main.tsx` entry (wraps the app in `BrowserRouter` + `AuthProvider` + `I18nProvider`) → `src/App.tsx` gates: Login → ForcedPasswordChange (if `requiresPasswordChange`) → react-router `<Routes>` nested in `AppShell` (`/` Home, `/schedule/:departmentId?` + `?week=YYYY-MM-DD` schedule editor/viewer — no id redirects to the first managed department; department tabs when you can edit more than one, `/workers` restaurant-manager only, `/profile`, `/profile/password`)
   - `src/components/AppShell.tsx` — logged-in layout: bottom tab bar on phone, side menu (start side) on `md:`+; one `navItems(user)` list drives both. `src/components/icons.tsx` — inline SVG icons (`ChevronStartIcon`/`ChevronEndIcon` flip in RTL)
   - `src/i18n/` — `messages.ts` (HE + EN dictionaries; `en` must have every HE key, TypeScript checks it), `I18nProvider` (picks the language, sets `<html lang dir>`), `useI18n()` → `t(key, params)`, `locale`, `errorMessage(err)`, `departmentName(name)`
   - `src/lib/api.ts` — `api<T>(path, {method, body})` fetch wrapper: adds the Bearer token, throws `ApiError` with the server's message + `code`/`params`. Use it for every API call; show errors with `errorMessage(err)` from `useI18n()`.
   - `src/auth/` — `AuthProvider` (user state, login/logout/changePassword/saveLanguage, restores session via `/me` on load) + `useAuth()` hook
   - `src/pages/` — one component per screen; `src/components/ui.tsx` — shared `Screen` (`title`, `actions`, `wide`), `CenteredScreen` (no nav), `Card`, `TextField`, `Button` (`variant="secondary"`), `ErrorMessage`
-  - `src/components/DepartmentPicker.tsx` — "Works in" checkboxes + separate "Manages" select (≤1 department); `AddWorkerForm.tsx`
+  - `src/components/DepartmentPicker.tsx` — per department: "Works here" + "Manager" checkboxes; departments managed by someone else are locked; `AddWorkerForm.tsx`
+  - `src/components/LanguageToggle.tsx` — `LanguageBar`: sticky full-width `h-12` strip on every page (AppShell + `CenteredScreen`) with the עברית/English toggle pinned to the physical right (`dir="ltr"`); the side menu sits below it (`top-12`)
   - `src/pages/SchedulePage.tsx` + `src/components/ShiftCard.tsx` — week navigation, create week, add/remove slots, assign workers (read-only when `canEdit` is false)
   - `src/lib/dates.ts` — "YYYY-MM-DD" date helpers (`currentWeekStart`, `addDays`, `formatDay(value, locale)`…) — never use `Date` objects for calendar dates
   - `src/lib/password.ts` — `PASSWORD_RULE` (mirrors the server rule; hint text is `t('password.hint')`) + `generateTemporaryPassword()`; `src/lib/roles.ts` — `roleLabel(user)` returns a translation key
@@ -34,7 +35,7 @@ One restaurant · responsive **desktop + phone** (PWA) · **Hebrew default (RTL)
   - `src/prisma/seed.ts` — creates departments (+ initial `DepartmentPayRate` with pay type), shift templates, the `RestaurantSettings` row, and the only restaurant manager (details from `.env`)
   - `src/lib/` — shared helpers (`prisma.ts` client, `auth.ts` JWT/bcrypt/password rule, `dates.ts` week/date parsing, `users.ts` `departmentRolesInclude` + `toDepartmentRoles` for user responses)
   - `src/middleware/auth.ts` — `authenticate`, `requireRestaurantManager`, `requireDepartmentManager(getDepartmentId(req, res))` (use `res.locals` when the department comes from a DB row loaded by earlier middleware, see `routes/slots.ts`), `requireAnyManager`, `canManageDepartment`
-  - `src/routes/` — one router per resource: `auth.ts` (+ `PATCH /language`), `settings.ts` (`GET /public` → `{ defaultLanguage }`, no login), `users.ts` (restaurant manager only; body `{ memberDepartmentIds, managedDepartmentId }`), `departments.ts` (`GET /api/departments` any logged-in user; `GET /:id/members` dept manager), `schedules.ts` (`POST /` create week — also adds missing DepartmentSchedules to an existing week, `GET /:weekStart/departments/:departmentId`), `shifts.ts` (`POST /:shiftId/slots`), `slots.ts` (`PATCH`/`DELETE /:id`)
+  - `src/routes/` — one router per resource: `auth.ts` (+ `PATCH /language`), `settings.ts` (`GET /public` → `{ defaultLanguage }`, no login), `users.ts` (restaurant manager only; body `{ memberDepartmentIds, managedDepartmentIds }`), `departments.ts` (`GET /api/departments` any logged-in user; `GET /:id/members` dept manager), `schedules.ts` (`POST /` create week — also adds missing DepartmentSchedules to an existing week, `GET /:weekStart/departments/:departmentId`), `shifts.ts` (`POST /:shiftId/slots`), `slots.ts` (`PATCH`/`DELETE /:id`)
 
 ## Environment (`server/.env`, gitignored — template in `server/.env.example`)
 - `DATABASE_URL` — Neon **pooled** connection string (host contains `-pooler`), used by the running app
@@ -45,9 +46,9 @@ One restaurant · responsive **desktop + phone** (PWA) · **Hebrew default (RTL)
 
 ## Domain rules (important — enforce these in middleware, not scattered checks)
 Full rules in PROJECT_SPEC.md. Key ones:
-- Roles: Restaurant Manager (one; has every department manager's permissions; manages the Shift Managers department), Department Manager (manages at most one department — **independent of working in it**; a department can have several managers), Worker, Shift manager (member of Shift Managers; any shift manager fills in end-of-shift reports)
+- Roles: Restaurant Manager (one; has every department manager's permissions; manages the Shift Managers department), Department Manager (can manage several departments — **independent of working in them**; each department has at most one manager, the restaurant manager aside), Worker, Shift manager (member of Shift Managers; any shift manager fills in end-of-shift reports)
 - Only the Restaurant Manager can create workers, assign departments/manager roles, set pay and settings
-- Membership (`DepartmentMembership`, holds `hourlyBonus`) and management (`DepartmentManager`, `userId` unique) are separate tables. Editing a user's departments keeps existing membership rows so bonuses survive
+- Membership (`DepartmentMembership`, holds `hourlyBonus`) and management (`DepartmentManager`, `departmentId` unique) are separate tables. Assigning a department that already has another manager → 409 `DEPARTMENT_HAS_MANAGER`. Editing a user's departments keeps existing membership rows so bonuses survive
 - Deactivated users (`isActive: false`) can't log in, their tokens are rejected, and they're hidden from slot pickers
 - Money is integer agorot (70 NIS = 7000), never floats. Pay rates keep history (`effectiveFrom`)
 - Clock-dependent rules (availability deadline, clock-in) use the restaurant time zone `Asia/Jerusalem`, not the server's
@@ -63,7 +64,7 @@ Full rules in PROJECT_SPEC.md. Key ones:
 - All API routes under `/api`, RESTful, prefixed by resource (`/api/shifts`, `/api/availability`)
 - Validate request bodies with zod before hitting the DB
 - Errors a user can hit through the UI also send a stable `code` (+ `params`), e.g. `{ error, code: "EMAIL_TAKEN" }`; the client translates `error.<CODE>` keys and falls back to the English `error` text
-- Auth middleware attaches `req.user` with `{ id, isRestaurantManager, memberDepartmentIds: string[], managedDepartmentId: string | null }`
+- Auth middleware attaches `req.user` with `{ id, isRestaurantManager, memberDepartmentIds: string[], managedDepartmentIds: string[] }`
 - Schema changes: edit `schema.prisma`, then `npx prisma migrate dev --name <what_changed>`, and commit the new migration folder together with the schema change
 - Data-moving migrations: create the SQL first (`migrate dev --create-only`), add the data-copy SQL by hand, wrap it in `BEGIN;`/`COMMIT;`, then apply. Never edit a migration after it's applied
 - **Never pass `DATABASE_URL`/`DIRECT_URL` as `--shadow-database-url`** (e.g. to `prisma migrate diff`): the shadow DB gets reset — this wiped the real DB once (restored via Neon). In a non-interactive shell, generate SQL with `migrate diff` against a throwaway Neon branch and apply with `migrate deploy`
@@ -87,6 +88,7 @@ Full rules in PROJECT_SPEC.md. Key ones:
 - [x] Schedules part 1 — editor: create week, add/remove slots, assign workers (dept manager / restaurant manager)
 - [x] Build step 2 — data model v2: migration `data_model_v2` (membership/manager split with data copy, `DepartmentPayRate`, `RestaurantSettings`, `User.pinHash/language/isActive`), Shift Managers department, new auth `user` shape, Workers page "Works in" / "Manages"
 - [x] Build step 3 — app shell: i18n (HE default + EN, RTL), `AppShell` navigation (phone tabs / desktop side menu), Profile page (details, language, change password, log out), existing pages converted (Schedule: desktop day grid + restaurant-manager department switcher; Workers: 2 columns on desktop)
+- [x] Tweaks after step 3: one manager per department (a user may manage several; migration `one_manager_per_department`), language toggle on every page
 - [ ] **Next: build step 4 — posting + team schedule + my shifts** (PROJECT_SPEC.md "Build order"), then: availability + settings → time clock station + attendance → end-of-shift report → pay & payroll → PWA + deployment
 - [ ] Later: edit a single shift's times (shared across departments — decide who may)
 - Testing tip: create temporary test users with `@example.test` emails and delete them afterwards (DepartmentMembership/DepartmentManager rows first) — never test with the real manager account

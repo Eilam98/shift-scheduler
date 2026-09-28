@@ -40,10 +40,10 @@ model User {
   requiresPasswordChange Boolean   @default(true)
   createdAt              DateTime  @default(now())
 
-  memberships       DepartmentMembership[]
-  managedDepartment DepartmentManager?
-  slots             ShiftSlot[]
-  availability      Availability[]
+  memberships        DepartmentMembership[]
+  managedDepartments DepartmentManager[]
+  slots              ShiftSlot[]
+  availability       Availability[]
 }
 
 model Department {
@@ -51,7 +51,7 @@ model Department {
   name String @unique // "Waiters", "Hostesses", "Bar", "Shift Managers"
 
   members         DepartmentMembership[]
-  managers        DepartmentManager[]
+  manager         DepartmentManager?
   payRates        DepartmentPayRate[]
   slots           ShiftSlot[]
   departmentWeeks DepartmentSchedule[]
@@ -70,12 +70,13 @@ model DepartmentMembership {
   @@unique([userId, departmentId])
 }
 
-// Who MANAGES a department — independent of working in it. A user manages at
-// most one department (userId is unique); a department can have several managers.
+// Who MANAGES a department — independent of working in it. A department has
+// at most one manager (departmentId is unique); a user can manage several.
+// The restaurant manager is never listed here: they manage every department.
 model DepartmentManager {
   id           String @id @default(cuid())
-  userId       String @unique
-  departmentId String
+  userId       String
+  departmentId String @unique
 
   user       User       @relation(fields: [userId], references: [id])
   department Department @relation(fields: [departmentId], references: [id])

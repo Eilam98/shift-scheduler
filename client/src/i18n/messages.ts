@@ -74,10 +74,11 @@ const he = {
   'workers.inactive': 'לא פעיל/ה',
   'workers.managesChip': 'מנהל/ת {department}',
 
-  'picker.worksIn': 'עובד/ת במחלקות',
-  'picker.manages': 'מנהל/ת את המחלקה',
-  'picker.noDepartment': 'אף מחלקה',
-  'picker.hint': 'אפשר לנהל מחלקה אחת לכל היותר, גם בלי לעבוד בה.',
+  'picker.departments': 'מחלקות',
+  'picker.worksHere': 'עובד/ת כאן',
+  'picker.manager': 'מנהל/ת',
+  'picker.managedBy': 'בניהול {name}',
+  'picker.hint': 'לכל מחלקה מנהל/ת אחד/ת לכל היותר. אפשר לנהל כמה מחלקות, גם בלי לעבוד בהן.',
 
   'schedule.title': 'סידור {department}',
   'schedule.titleGeneric': 'סידור עבודה',
@@ -111,6 +112,7 @@ const he = {
   'error.NOT_IN_DEPARTMENT': 'העובד/ת לא שייך/ת למחלקה הזו',
   'error.ALREADY_IN_SHIFT': '{name} כבר משובץ/ת במשמרת הזו ({department})',
   'error.SCHEDULE_NOT_POSTED': 'הסידור הזה עוד לא פורסם',
+  'error.DEPARTMENT_HAS_MANAGER': 'מחלקת {department} כבר בניהול {name}',
 } satisfies Record<string, string>
 
 export type MessageKey = keyof typeof he
@@ -183,10 +185,12 @@ const en: Record<MessageKey, string> = {
   'workers.inactive': 'Inactive',
   'workers.managesChip': 'Manages {department}',
 
-  'picker.worksIn': 'Works in',
-  'picker.manages': 'Manages',
-  'picker.noDepartment': 'No department',
-  'picker.hint': 'A person can manage at most one department, whether or not they work in it.',
+  'picker.departments': 'Departments',
+  'picker.worksHere': 'Works here',
+  'picker.manager': 'Manager',
+  'picker.managedBy': 'Managed by {name}',
+  'picker.hint':
+    'Each department has at most one manager. A person can manage several departments, whether or not they work in them.',
 
   'schedule.title': '{department} schedule',
   'schedule.titleGeneric': 'Schedule',
@@ -221,6 +225,7 @@ const en: Record<MessageKey, string> = {
   'error.NOT_IN_DEPARTMENT': "That worker isn't in this department",
   'error.ALREADY_IN_SHIFT': '{name} already works this shift ({department})',
   'error.SCHEDULE_NOT_POSTED': "This schedule hasn't been posted yet",
+  'error.DEPARTMENT_HAS_MANAGER': '{department} is already managed by {name}',
 }
 
 export const messages: Record<Language, Record<MessageKey, string>> = { HE: he, EN: en }

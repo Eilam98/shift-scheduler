@@ -14,31 +14,49 @@ router.use(authenticate, requireRestaurantManager);
 // Where a user works and what they manage — chosen independently.
 const departmentRolesSchema = z.object({
   memberDepartmentIds: z.array(z.string().min(1)).default([]),
-  managedDepartmentId: z.string().min(1).nullable().default(null),
+  managedDepartmentIds: z.array(z.string().min(1)).default([]),
 });
 
 type DepartmentRoles = z.infer<typeof departmentRolesSchema>;
+type RolesError = { status: number; error: string; code?: string; params?: Record<string, string> };
 
 /**
  * Checks department roles against the domain rules before they touch the DB:
- * no duplicate memberships and every departmentId exists. "Manages at most
- * one department" is built into the shape (a single managedDepartmentId).
- * Returns an error message, or null if valid.
+ * no duplicates, every departmentId exists, and each department to be managed
+ * doesn't already have a manager other than this user (a department has at
+ * most one manager). Returns the error to send, or null if valid.
  */
-async function validateDepartmentRoles({
-  memberDepartmentIds,
-  managedDepartmentId,
-}: DepartmentRoles): Promise<string | null> {
-  if (new Set(memberDepartmentIds).size !== memberDepartmentIds.length) {
-    return "Each department can only be assigned once";
+async function validateDepartmentRoles(
+  { memberDepartmentIds, managedDepartmentIds }: DepartmentRoles,
+  userId?: string
+): Promise<RolesError | null> {
+  if (
+    new Set(memberDepartmentIds).size !== memberDepartmentIds.length ||
+    new Set(managedDepartmentIds).size !== managedDepartmentIds.length
+  ) {
+    return { status: 400, error: "Each department can only be assigned once" };
   }
 
-  const ids = new Set(memberDepartmentIds);
-  if (managedDepartmentId) ids.add(managedDepartmentId);
-
+  const ids = new Set([...memberDepartmentIds, ...managedDepartmentIds]);
   const found = await prisma.department.count({ where: { id: { in: [...ids] } } });
   if (found !== ids.size) {
-    return "One or more departmentIds do not exist";
+    return { status: 400, error: "One or more departmentIds do not exist" };
+  }
+
+  const taken = await prisma.departmentManager.findFirst({
+    where: {
+      departmentId: { in: managedDepartmentIds },
+      ...(userId ? { userId: { not: userId } } : {}),
+    },
+    include: { user: true, department: true },
+  });
+  if (taken) {
+    return {
+      status: 409,
+      error: `${taken.department.name} is already managed by ${taken.user.name}`,
+      code: "DEPARTMENT_HAS_MANAGER",
+      params: { department: taken.department.name, name: taken.user.name },
+    };
   }
 
   return null;
@@ -67,7 +85,7 @@ router.post("/", async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({ error: "name, email, temporaryPassword are required" });
   }
-  const { name, email, temporaryPassword, memberDepartmentIds, managedDepartmentId } = parsed.data;
+  const { name, email, temporaryPassword, memberDepartmentIds, managedDepartmentIds } = parsed.data;
 
   if (!isValidPassword(temporaryPassword)) {
     return res
@@ -78,9 +96,10 @@ router.post("/", async (req, res) => {
       });
   }
 
-  const departmentError = await validateDepartmentRoles(parsed.data);
-  if (departmentError) {
-    return res.status(400).json({ error: departmentError });
+  const rolesError = await validateDepartmentRoles(parsed.data);
+  if (rolesError) {
+    const { status, ...body } = rolesError;
+    return res.status(status).json(body);
   }
 
   const existing = await prisma.user.findUnique({ where: { email } });
@@ -97,9 +116,7 @@ router.post("/", async (req, res) => {
       passwordHash,
       requiresPasswordChange: true,
       memberships: { create: memberDepartmentIds.map((departmentId) => ({ departmentId })) },
-      managedDepartment: managedDepartmentId
-        ? { create: { departmentId: managedDepartmentId } }
-        : undefined,
+      managedDepartments: { create: managedDepartmentIds.map((departmentId) => ({ departmentId })) },
     },
     include: departmentRolesInclude,
   });
@@ -118,26 +135,27 @@ router.get("/", async (_req, res) => {
 });
 
 // PATCH /api/users/:id/departments — restaurant-manager only, full replace of
-// { memberDepartmentIds, managedDepartmentId }.
+// { memberDepartmentIds, managedDepartmentIds }.
 router.patch("/:id/departments", async (req, res) => {
   const parsed = departmentRolesSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ error: "memberDepartmentIds and managedDepartmentId are required" });
+    return res.status(400).json({ error: "memberDepartmentIds and managedDepartmentIds must be arrays" });
   }
   const { id } = req.params;
-  const { memberDepartmentIds, managedDepartmentId } = parsed.data;
+  const { memberDepartmentIds, managedDepartmentIds } = parsed.data;
 
   const existing = await prisma.user.findUnique({ where: { id } });
   if (!existing) {
     return res.status(404).json({ error: "User not found" });
   }
-  if (existing.isRestaurantManager && managedDepartmentId) {
+  if (existing.isRestaurantManager && managedDepartmentIds.length > 0) {
     return res.status(400).json({ error: "The restaurant manager already manages every department" });
   }
 
-  const departmentError = await validateDepartmentRoles(parsed.data);
-  if (departmentError) {
-    return res.status(400).json({ error: departmentError });
+  const rolesError = await validateDepartmentRoles(parsed.data, id);
+  if (rolesError) {
+    const { status, ...body } = rolesError;
+    return res.status(status).json(body);
   }
 
   // Memberships: remove the ones no longer listed and add new ones, but keep
@@ -151,15 +169,13 @@ router.patch("/:id/departments", async (req, res) => {
       skipDuplicates: true,
     });
 
-    if (managedDepartmentId) {
-      await tx.departmentManager.upsert({
-        where: { userId: id },
-        update: { departmentId: managedDepartmentId },
-        create: { userId: id, departmentId: managedDepartmentId },
-      });
-    } else {
-      await tx.departmentManager.deleteMany({ where: { userId: id } });
-    }
+    await tx.departmentManager.deleteMany({
+      where: { userId: id, departmentId: { notIn: managedDepartmentIds } },
+    });
+    await tx.departmentManager.createMany({
+      data: managedDepartmentIds.map((departmentId) => ({ userId: id, departmentId })),
+      skipDuplicates: true, // already managed by this user
+    });
 
     return tx.user.findUniqueOrThrow({ where: { id }, include: departmentRolesInclude });
   });

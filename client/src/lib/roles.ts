@@ -4,6 +4,6 @@ import type { DepartmentRoles } from '../types'
 /** Translation key for the user's role — pass it to t(). */
 export function roleLabel(user: DepartmentRoles & { isRestaurantManager: boolean }): MessageKey {
   if (user.isRestaurantManager) return 'role.restaurantManager'
-  if (user.managedDepartment) return 'role.departmentManager'
+  if (user.managedDepartments.length > 0) return 'role.departmentManager'
   return 'role.worker'
 }

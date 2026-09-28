@@ -8,10 +8,12 @@ import { Button, ErrorMessage, TextField } from './ui'
 
 export function AddWorkerForm({
   departments,
+  otherManagers,
   onCreated,
   onCancel,
 }: {
   departments: Department[]
+  otherManagers: Map<string, string>
   onCreated: (user: UserListItem, temporaryPassword: string) => void
   onCancel: () => void
 }) {
@@ -21,7 +23,7 @@ export function AddWorkerForm({
   const [temporaryPassword, setTemporaryPassword] = useState(generateTemporaryPassword)
   const [roles, setRoles] = useState<DepartmentRolesInput>({
     memberDepartmentIds: [],
-    managedDepartmentId: null,
+    managedDepartmentIds: [],
   })
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -85,7 +87,12 @@ export function AddWorkerForm({
           {t('workers.newPassword')}
         </Button>
       </div>
-      <DepartmentPicker departments={departments} value={roles} onChange={setRoles} />
+      <DepartmentPicker
+        departments={departments}
+        value={roles}
+        onChange={setRoles}
+        otherManagers={otherManagers}
+      />
       {error && <ErrorMessage>{error}</ErrorMessage>}
       <div className="flex gap-2">
         <Button type="button" variant="secondary" onClick={onCancel}>

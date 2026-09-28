@@ -7,7 +7,7 @@ export interface Department {
 // sent to POST /users and PATCH /users/:id/departments.
 export interface DepartmentRolesInput {
   memberDepartmentIds: string[]
-  managedDepartmentId: string | null
+  managedDepartmentIds: string[]
 }
 
 export interface DepartmentRef {
@@ -18,7 +18,7 @@ export interface DepartmentRef {
 // Mirrors toDepartmentRoles in server/src/lib/users.ts.
 export interface DepartmentRoles {
   memberships: DepartmentRef[]
-  managedDepartment: DepartmentRef | null
+  managedDepartments: DepartmentRef[]
 }
 
 // Mirrors toUserListItem in server/src/routes/users.ts (GET/POST /api/users).

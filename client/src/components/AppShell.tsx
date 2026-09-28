@@ -6,6 +6,7 @@ import type { MessageKey } from '../i18n/messages'
 import { roleLabel } from '../lib/roles'
 import type { User } from '../types'
 import { CalendarIcon, HomeIcon, UserIcon, UsersIcon } from './icons'
+import { LanguageBar } from './LanguageToggle'
 
 interface NavItem {
   to: string
@@ -16,7 +17,7 @@ interface NavItem {
 
 /** The screens this user can reach — the same list drives both menus. */
 function navItems(user: User): NavItem[] {
-  const isManager = user.isRestaurantManager || !!user.managedDepartment
+  const isManager = user.isRestaurantManager || user.managedDepartments.length > 0
   return [
     { to: '/', label: 'nav.home', icon: HomeIcon, end: true },
     ...(isManager ? [{ to: '/schedule', label: 'nav.schedules', icon: CalendarIcon } as const] : []),
@@ -36,39 +37,43 @@ export function AppShell() {
   const items = navItems(user)
 
   return (
-    <div className="min-h-dvh bg-slate-50 md:flex">
-      <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-e border-slate-200 bg-white md:flex">
-        <p className="px-6 pt-6 pb-4 text-lg font-bold text-slate-900">{t('app.name')}</p>
-        <nav aria-label={t('nav.main')} className="flex-1 space-y-1 px-3">
-          {items.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              className={({ isActive }) =>
-                `flex items-center gap-3 rounded-lg px-3 py-2.5 font-medium ${
-                  isActive ? 'bg-indigo-50 text-indigo-700' : 'text-slate-700 hover:bg-slate-100'
-                }`
-              }
-            >
-              <item.icon className="size-5" />
-              {t(item.label)}
-            </NavLink>
-          ))}
-        </nav>
-        <div className="border-t border-slate-200 p-4">
-          <p className="truncate font-medium text-slate-900">{user.name}</p>
-          <p className="text-sm text-slate-500">{t(roleLabel(user))}</p>
-          <button onClick={logout} className="mt-2 text-sm font-medium text-indigo-600">
-            {t('common.logout')}
-          </button>
-        </div>
-      </aside>
+    <div className="min-h-dvh bg-slate-50">
+      <LanguageBar />
+      <div className="md:flex">
+        {/* sticks just below the 3rem (h-12) LanguageBar and fills the rest of the height */}
+        <aside className="sticky top-12 hidden h-[calc(100dvh-3rem)] w-60 shrink-0 flex-col border-e border-slate-200 bg-white md:flex">
+          <p className="px-6 pt-6 pb-4 text-lg font-bold text-slate-900">{t('app.name')}</p>
+          <nav aria-label={t('nav.main')} className="flex-1 space-y-1 px-3">
+            {items.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 rounded-lg px-3 py-2.5 font-medium ${
+                    isActive ? 'bg-indigo-50 text-indigo-700' : 'text-slate-700 hover:bg-slate-100'
+                  }`
+                }
+              >
+                <item.icon className="size-5" />
+                {t(item.label)}
+              </NavLink>
+            ))}
+          </nav>
+          <div className="border-t border-slate-200 p-4">
+            <p className="truncate font-medium text-slate-900">{user.name}</p>
+            <p className="text-sm text-slate-500">{t(roleLabel(user))}</p>
+            <button onClick={logout} className="mt-2 text-sm font-medium text-indigo-600">
+              {t('common.logout')}
+            </button>
+          </div>
+        </aside>
 
-      {/* pb leaves room for the fixed tab bar on phones */}
-      <main className="min-w-0 flex-1 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0">
-        <Outlet />
-      </main>
+        {/* pb leaves room for the fixed tab bar on phones */}
+        <main className="min-w-0 flex-1 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0">
+          <Outlet />
+        </main>
+      </div>
 
       <nav
         aria-label={t('nav.main')}

@@ -6,7 +6,7 @@ export interface AuthenticatedUser {
   id: string;
   isRestaurantManager: boolean;
   memberDepartmentIds: string[]; // departments the user works in
-  managedDepartmentId: string | null; // the one department they manage (independent of membership)
+  managedDepartmentIds: string[]; // departments they manage (independent of membership)
 }
 
 // Augment Express's Request type so req.user is typed everywhere it's used.
@@ -39,7 +39,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: { memberships: true, managedDepartment: true },
+      include: { memberships: true, managedDepartments: true },
     });
 
     // A deactivated user's existing tokens stop working immediately.
@@ -51,7 +51,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
       id: user.id,
       isRestaurantManager: user.isRestaurantManager,
       memberDepartmentIds: user.memberships.map((m) => m.departmentId),
-      managedDepartmentId: user.managedDepartment?.departmentId ?? null,
+      managedDepartmentIds: user.managedDepartments.map((m) => m.departmentId),
     };
 
     next();
@@ -69,7 +69,7 @@ export function requireRestaurantManager(req: Request, res: Response, next: Next
 
 /** True if the user is the restaurant manager or manages this department. */
 export function canManageDepartment(user: AuthenticatedUser, departmentId: string): boolean {
-  return user.isRestaurantManager || user.managedDepartmentId === departmentId;
+  return user.isRestaurantManager || user.managedDepartmentIds.includes(departmentId);
 }
 
 /**
@@ -99,7 +99,7 @@ export function requireDepartmentManager(
 /** Restaurant manager, or manager of at least one department. */
 export function requireAnyManager(req: Request, res: Response, next: NextFunction) {
   const user = req.user;
-  if (!user?.isRestaurantManager && !user?.managedDepartmentId) {
+  if (!user?.isRestaurantManager && !user?.managedDepartmentIds.length) {
     return res.status(403).json({ error: "Manager access required" });
   }
   next();

@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
+import { LanguageBar } from './LanguageToggle'
 
 // Small shared building blocks so every screen looks consistent. Mobile-first;
 // direction-neutral classes (ms/me/ps/pe, start/end) so RTL works.
@@ -34,8 +35,9 @@ export function Screen({
 /** Full-page narrow column without navigation (login, forced password change). */
 export function CenteredScreen({ children }: { children: ReactNode }) {
   return (
-    <main className="min-h-dvh bg-slate-50 px-4 py-10">
-      <div className="mx-auto max-w-md">{children}</div>
+    <main className="min-h-dvh bg-slate-50">
+      <LanguageBar />
+      <div className="mx-auto max-w-md px-4 py-10">{children}</div>
     </main>
   )
 }

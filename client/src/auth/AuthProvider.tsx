@@ -60,11 +60,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   const saveLanguage = useCallback(async (language: Language | null) => {
-    const { user } = await api<{ user: User }>('/auth/language', {
-      method: 'PATCH',
-      body: { language },
+    let previous: Language | null = null
+    let userId: string | undefined
+    // Switch right away; the request just persists it (reverted on failure).
+    setUser((u) => {
+      previous = u?.language ?? null
+      userId = u?.id
+      return u && { ...u, language }
     })
-    setUser(user)
+    // Only apply the reply to the same logged-in user — if they logged out
+    // meanwhile, a late reply must not log them back in.
+    const sameUser = (u: User | null) => !!u && u.id === userId
+    try {
+      const { user } = await api<{ user: User }>('/auth/language', {
+        method: 'PATCH',
+        body: { language },
+      })
+      setUser((u) => (sameUser(u) ? user : u))
+    } catch (err) {
+      setUser((u) => (u && sameUser(u) ? { ...u, language: previous } : u))
+      throw err
+    }
   }, [])
 
   const value = useMemo<AuthState>(

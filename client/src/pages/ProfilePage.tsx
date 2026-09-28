@@ -53,9 +53,10 @@ export function ProfilePage() {
               {user.memberships.map((m) => departmentName(m.departmentName)).join(', ')}
             </p>
           )}
-          {user.managedDepartment && (
+          {user.managedDepartments.length > 0 && (
             <p className="mt-1 text-sm text-slate-700">
-              {t('department.manages')}: {departmentName(user.managedDepartment.departmentName)}
+              {t('department.manages')}:{' '}
+              {user.managedDepartments.map((m) => departmentName(m.departmentName)).join(', ')}
             </p>
           )}
         </Card>

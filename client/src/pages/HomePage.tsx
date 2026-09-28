@@ -31,12 +31,10 @@ export function HomePage() {
   if (!user) return null
 
   // Schedules this user can edit: every department for the restaurant manager,
-  // otherwise the one department they manage.
+  // otherwise the departments they manage.
   const editable: Department[] = user.isRestaurantManager
     ? allDepartments
-    : user.managedDepartment
-      ? [{ id: user.managedDepartment.departmentId, name: user.managedDepartment.departmentName }]
-      : []
+    : user.managedDepartments.map((d) => ({ id: d.departmentId, name: d.departmentName }))
 
   return (
     <Screen title={t('app.name')}>
@@ -50,9 +48,10 @@ export function HomePage() {
               {user.memberships.map((m) => departmentName(m.departmentName)).join(', ')}
             </p>
           )}
-          {user.managedDepartment && (
+          {user.managedDepartments.length > 0 && (
             <p className="mt-1 text-sm text-slate-700">
-              {t('department.manages')}: {departmentName(user.managedDepartment.departmentName)}
+              {t('department.manages')}:{' '}
+              {user.managedDepartments.map((m) => departmentName(m.departmentName)).join(', ')}
             </p>
           )}
         </Card>

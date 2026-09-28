@@ -7,7 +7,7 @@ A shift-scheduling, time-tracking and pay app for **one restaurant**. It runs as
 
 ## Roles
 - **Restaurant Manager** — exactly one. Has every department manager's permissions for every department, creates workers, sets pay and settings. Also acts as the manager of the **Shift Managers** department (posts its weekly schedule).
-- **Department Manager** — manages **at most one** department. Managing a department is **independent of working in it** (e.g. a shift manager can manage the Bar without being a bartender). Can create/edit the department's schedule, post it, and swap people between shifts. A department can have several managers.
+- **Department Manager** — can manage **one or more** departments, but each department has **at most one** manager (the restaurant manager aside, who manages everything). Managing a department is **independent of working in it** (e.g. a shift manager can manage the Bar without being a bartender). Can create/edit the department's schedule, post it, and swap people between shifts.
 - **Worker** — works in one or more departments. Submits availability, sees posted schedules, sees their own hours and earnings.
 - **Shift manager** — a member of the Shift Managers department. Any shift manager can fill in the end-of-shift report (hours of tip workers + the shift's tip pool).
 
@@ -45,6 +45,7 @@ Rules:
 - `RestaurantSettings` (one row): availability deadline day + time, default language (HE), time zone (`Asia/Jerusalem`), default shift times.
 - `User.language` optional override of the default.
 - All UI text goes through translations (HE + EN); layouts use logical CSS (start/end, not left/right) so RTL works.
+- A **עברית / English** toggle sits at the top right of every page (fixed position and order in both directions). Logged in, it saves the user's language; logged out, it's remembered on the device.
 
 ## Target data model (Prisma)
 Status: ✅ built · 🔜 planned. Built tables keep their current shape until the migration that changes them.
@@ -86,8 +87,8 @@ model DepartmentMembership {
 // ✅ Who MANAGES a department (independent of membership).
 model DepartmentManager {
   id           String @id @default(cuid())
-  userId       String @unique                   // manages at most one department
-  departmentId String                           // a department may have several managers
+  userId       String                           // a user may manage several departments
+  departmentId String @unique                   // a department has at most one manager
 }
 
 // ✅ rate history per department (seeded with each department's pay type, amounts unset until step 8)
@@ -214,8 +215,8 @@ Every page works on **phone** (single column, bottom tab bar) and **desktop** (s
 - **PATCH /api/auth/password** `{ currentPassword, newPassword }` → `{ success: true }`, clears `requiresPasswordChange`
 - **PATCH /api/auth/language** `{ language: "HE" | "EN" | null }` → `{ user }` (null = restaurant default)
 - **GET /api/settings/public** (no login) → `{ defaultLanguage }` — used by the login screen
-- Errors the UI shows carry a stable `code` for translation: `INVALID_CREDENTIALS`, `ACCOUNT_DEACTIVATED`, `INVALID_PASSWORD`, `WRONG_CURRENT_PASSWORD`, `EMAIL_TAKEN`, `NOT_IN_DEPARTMENT`, `ALREADY_IN_SHIFT` (`params: { name, department }`), `SCHEDULE_NOT_POSTED`
-- `user` shape: `{ id, name, email, isRestaurantManager, requiresPasswordChange, language, memberships: [{ departmentId, departmentName }], managedDepartment: { departmentId, departmentName } | null }`.
+- Errors the UI shows carry a stable `code` for translation: `INVALID_CREDENTIALS`, `ACCOUNT_DEACTIVATED`, `INVALID_PASSWORD`, `WRONG_CURRENT_PASSWORD`, `EMAIL_TAKEN`, `NOT_IN_DEPARTMENT`, `ALREADY_IN_SHIFT` (`params: { name, department }`), `SCHEDULE_NOT_POSTED`, `DEPARTMENT_HAS_MANAGER` (`params: { name, department }`)
+- `user` shape: `{ id, name, email, isRestaurantManager, requiresPasswordChange, language, memberships: [{ departmentId, departmentName }], managedDepartments: [{ departmentId, departmentName }] }`.
 - Login of a deactivated user (`isActive: false`) → 403 (checked after the password); their existing tokens get 401.
 - User management, departments, schedules, shifts and slots routes: see CLAUDE.md "Folder structure".
 

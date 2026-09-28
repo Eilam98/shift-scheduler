@@ -42,6 +42,16 @@ export function WorkersPage() {
     }
   }, [errorMessage])
 
+  /** Who manages each department, leaving out `exceptUserId` (the person being edited). */
+  function otherManagers(exceptUserId?: string): Map<string, string> {
+    const map = new Map<string, string>()
+    for (const u of users) {
+      if (u.id === exceptUserId) continue
+      for (const d of u.managedDepartments) map.set(d.departmentId, u.name)
+    }
+    return map
+  }
+
   function replaceUser(updated: UserListItem) {
     setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)))
   }
@@ -73,6 +83,7 @@ export function WorkersPage() {
             <Card className="lg:col-span-2">
               <AddWorkerForm
                 departments={departments}
+                otherManagers={otherManagers()}
                 onCancel={() => setAdding(false)}
                 onCreated={(user, temporaryPassword) => {
                   setUsers((prev) =>
@@ -102,6 +113,7 @@ export function WorkersPage() {
                 key={user.id}
                 user={user}
                 departments={departments}
+                otherManagers={otherManagers(user.id)}
                 onSaved={(updated) => {
                   replaceUser(updated)
                   setEditingId(null)
@@ -150,7 +162,7 @@ function WorkerCard({ user, onEdit }: { user: UserListItem; onEdit?: () => void 
           </button>
         )}
       </div>
-      {(user.memberships.length > 0 || user.managedDepartment) && (
+      {(user.memberships.length > 0 || user.managedDepartments.length > 0) && (
         <div className="mt-3 flex flex-wrap gap-2">
           {user.memberships.map((m) => (
             <span
@@ -160,13 +172,14 @@ function WorkerCard({ user, onEdit }: { user: UserListItem; onEdit?: () => void 
               {departmentName(m.departmentName)}
             </span>
           ))}
-          {user.managedDepartment && (
-            <span className="rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-medium text-indigo-800">
-              {t('workers.managesChip', {
-                department: departmentName(user.managedDepartment.departmentName),
-              })}
+          {user.managedDepartments.map((m) => (
+            <span
+              key={m.departmentId}
+              className="rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-medium text-indigo-800"
+            >
+              {t('workers.managesChip', { department: departmentName(m.departmentName) })}
             </span>
-          )}
+          ))}
         </div>
       )}
     </Card>
@@ -176,18 +189,20 @@ function WorkerCard({ user, onEdit }: { user: UserListItem; onEdit?: () => void 
 function EditDepartmentsCard({
   user,
   departments,
+  otherManagers,
   onSaved,
   onCancel,
 }: {
   user: UserListItem
   departments: Department[]
+  otherManagers: Map<string, string>
   onSaved: (user: UserListItem) => void
   onCancel: () => void
 }) {
   const { t, errorMessage } = useI18n()
   const [roles, setRoles] = useState<DepartmentRolesInput>(() => ({
     memberDepartmentIds: user.memberships.map((m) => m.departmentId),
-    managedDepartmentId: user.managedDepartment?.departmentId ?? null,
+    managedDepartmentIds: user.managedDepartments.map((m) => m.departmentId),
   }))
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -211,7 +226,12 @@ function EditDepartmentsCard({
   return (
     <Card className="lg:col-span-2">
       <p className="mb-3 font-semibold text-slate-900">{user.name}</p>
-      <DepartmentPicker departments={departments} value={roles} onChange={setRoles} />
+      <DepartmentPicker
+        departments={departments}
+        value={roles}
+        onChange={setRoles}
+        otherManagers={otherManagers}
+      />
       {error && (
         <div className="mt-3">
           <ErrorMessage>{error}</ErrorMessage>

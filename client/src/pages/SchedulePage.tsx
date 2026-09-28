@@ -16,8 +16,9 @@ type Loaded =
 
 /**
  * /schedule/:departmentId?week=YYYY-MM-DD — one department's week.
- * Without a departmentId it opens the department you manage (the restaurant
- * manager gets the first department and a switcher for all of them).
+ * Without a departmentId it opens the first department you manage (the
+ * restaurant manager: the first department). A switcher lists every department
+ * you can edit when there's more than one.
  */
 export function SchedulePage() {
   const { departmentId = '' } = useParams()
@@ -36,7 +37,8 @@ export function SchedulePage() {
   const [allDepartments, setAllDepartments] = useState<Department[] | null>(null)
 
   const canManage =
-    !!user && (user.isRestaurantManager || user.managedDepartment?.departmentId === departmentId)
+    !!user &&
+    (user.isRestaurantManager || user.managedDepartments.some((d) => d.departmentId === departmentId))
 
   useEffect(() => {
     if (!isRestaurantManager) return
@@ -76,7 +78,7 @@ export function SchedulePage() {
   if (!user) return null
 
   if (!departmentId) {
-    const target = user.managedDepartment?.departmentId ?? allDepartments?.[0]?.id
+    const target = user.managedDepartments[0]?.departmentId ?? allDepartments?.[0]?.id
     if (target) return <Navigate to={`/schedule/${target}?week=${weekStart}`} replace />
     if (!isRestaurantManager) return <Navigate to="/" replace />
     return (
@@ -122,6 +124,11 @@ export function SchedulePage() {
     )
   }
 
+  // Department tabs: all departments for the restaurant manager, otherwise the
+  // ones this user manages (only shown when there's more than one).
+  const switchable: Department[] =
+    allDepartments ?? user.managedDepartments.map((d) => ({ id: d.departmentId, name: d.departmentName }))
+
   const week = loaded?.kind === 'ready' ? loaded.week : null
   const days = week ? groupByDate(week.shifts) : []
 
@@ -134,12 +141,12 @@ export function SchedulePage() {
           : t('schedule.titleGeneric')
       }
     >
-      {allDepartments && allDepartments.length > 1 && (
+      {switchable.length > 1 && (
         <nav
           aria-label={t('schedule.department')}
           className="-mx-4 mb-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:px-0"
         >
-          {allDepartments.map((d) => (
+          {switchable.map((d) => (
             <Link
               key={d.id}
               to={`/schedule/${d.id}?week=${weekStart}`}
