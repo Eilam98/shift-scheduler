@@ -18,7 +18,8 @@ const he = {
 
   'nav.main': 'ניווט ראשי',
   'nav.home': 'בית',
-  'nav.schedules': 'סידורים',
+  'nav.schedule': 'סידור',
+  'nav.myShifts': 'המשמרות שלי',
   'nav.workers': 'עובדים',
   'nav.profile': 'פרופיל',
 
@@ -57,6 +58,20 @@ const he = {
 
   'home.welcome': 'שלום, {name}',
   'home.editSchedules': 'עריכת סידורים',
+  'home.nextShifts': 'המשמרות הקרובות שלי',
+  'home.allShifts': 'כל המשמרות',
+
+  'myShifts.title': 'המשמרות שלי',
+  'myShifts.upcoming': 'משמרות קרובות',
+  'myShifts.past': '30 הימים האחרונים',
+  'myShifts.noUpcoming': 'אין משמרות קרובות בסידורים שפורסמו.',
+
+  'notifications.title': 'התראות',
+  'notifications.unreadLabel': 'התראות, {count} חדשות',
+  'notifications.empty': 'אין התראות עדיין.',
+  'notification.SCHEDULE_POSTED': 'סידור {department} לשבוע {week} פורסם',
+  'notification.SHIFT_ADDED': 'שובצת למשמרת {shift} ב{day} ({department})',
+  'notification.SHIFT_REMOVED': 'הוסרת ממשמרת {shift} ב{day} ({department})',
 
   'profile.title': 'פרופיל',
   'profile.language': 'שפה',
@@ -91,6 +106,15 @@ const he = {
   'schedule.createHint': 'יצירת השבוע מוסיפה משמרת בוקר ומשמרת ערב לכל יום, לפי שעות ברירת המחדל.',
   'schedule.create': 'יצירת השבוע',
   'schedule.creating': 'יוצר…',
+  'schedule.notPosted': 'הסידור לשבוע הזה עוד לא פורסם.',
+  'schedule.post': 'פרסום השבוע',
+  'schedule.unpost': 'ביטול פרסום',
+  'schedule.postConfirm': 'לפרסם את הסידור?',
+  'schedule.openSlotsWarningOne': 'שימו לב: עמדה אחת עדיין פנויה.',
+  'schedule.openSlotsWarning': 'שימו לב: {count} עמדות עדיין פנויות.',
+  'schedule.postHint': 'כל המשובצים בשבוע יקבלו התראה, וכל העובדים יוכלו לראות את הסידור.',
+  'schedule.draftBanner': 'טיוטה — רק מנהלים רואים את הסידור.',
+  'schedule.postedBanner': 'פורסם — העובדים רואים שינויים מיד ומקבלים התראה כששיבוץ שלהם משתנה.',
 
   'shift.MORNING': 'בוקר',
   'shift.EVENING': 'ערב',
@@ -130,7 +154,8 @@ const en: Record<MessageKey, string> = {
 
   'nav.main': 'Main navigation',
   'nav.home': 'Home',
-  'nav.schedules': 'Schedules',
+  'nav.schedule': 'Schedule',
+  'nav.myShifts': 'My shifts',
   'nav.workers': 'Workers',
   'nav.profile': 'Profile',
 
@@ -168,6 +193,20 @@ const en: Record<MessageKey, string> = {
 
   'home.welcome': 'Welcome, {name}',
   'home.editSchedules': 'Edit schedules',
+  'home.nextShifts': 'My next shifts',
+  'home.allShifts': 'All shifts',
+
+  'myShifts.title': 'My shifts',
+  'myShifts.upcoming': 'Upcoming',
+  'myShifts.past': 'Past 30 days',
+  'myShifts.noUpcoming': 'No upcoming shifts in posted schedules.',
+
+  'notifications.title': 'Notifications',
+  'notifications.unreadLabel': 'Notifications, {count} new',
+  'notifications.empty': 'No notifications yet.',
+  'notification.SCHEDULE_POSTED': 'The {department} schedule for {week} was posted',
+  'notification.SHIFT_ADDED': 'You were added to the {shift} shift on {day} ({department})',
+  'notification.SHIFT_REMOVED': 'You were removed from the {shift} shift on {day} ({department})',
 
   'profile.title': 'Profile',
   'profile.language': 'Language',
@@ -204,6 +243,15 @@ const en: Record<MessageKey, string> = {
     'Creating it adds a morning and evening shift for every day, using the default shift times.',
   'schedule.create': 'Create this week',
   'schedule.creating': 'Creating…',
+  'schedule.notPosted': "This week's schedule hasn't been posted yet.",
+  'schedule.post': 'Post week',
+  'schedule.unpost': 'Unpost',
+  'schedule.postConfirm': 'Post this schedule?',
+  'schedule.openSlotsWarningOne': 'Heads up: 1 slot is still open.',
+  'schedule.openSlotsWarning': 'Heads up: {count} slots are still open.',
+  'schedule.postHint': 'Everyone scheduled this week gets a notification, and all workers can see the schedule.',
+  'schedule.draftBanner': 'Draft — only managers can see this schedule.',
+  'schedule.postedBanner': 'Posted — workers see changes right away and are notified when their shifts change.',
 
   'shift.MORNING': 'Morning',
   'shift.EVENING': 'Evening',

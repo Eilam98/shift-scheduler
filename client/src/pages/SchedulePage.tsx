@@ -2,23 +2,26 @@ import { useEffect, useState } from 'react'
 import { Link, Navigate, useParams, useSearchParams } from 'react-router'
 import { useAuth } from '../auth/authContext'
 import { ChevronEndIcon, ChevronStartIcon } from '../components/icons'
+import { ReadOnlyShift } from '../components/ReadOnlyShift'
 import { ShiftCard } from '../components/ShiftCard'
 import { Button, Card, ErrorMessage, Screen } from '../components/ui'
 import { useI18n } from '../i18n/i18nContext'
 import { ApiError, api } from '../lib/api'
 import { addDays, currentWeekStart, formatDay, formatWeekRange, isWeekStart } from '../lib/dates'
-import type { Department, DepartmentWeek, Member, Slot } from '../types'
+import type { Department, DepartmentWeek, Member, ScheduleStatus, Slot } from '../types'
 
 type Loaded =
   | { kind: 'ready'; week: DepartmentWeek; members: Member[] }
   | { kind: 'missing' } // no schedule created for this week yet
+  | { kind: 'notPosted' } // exists, but this department hasn't posted it (viewers only)
   | { kind: 'error'; message: string }
 
 /**
- * /schedule/:departmentId?week=YYYY-MM-DD — one department's week.
- * Without a departmentId it opens the first department you manage (the
- * restaurant manager: the first department). A switcher lists every department
- * you can edit when there's more than one.
+ * /schedule/:departmentId?week=YYYY-MM-DD — one department's week, for
+ * everyone. Managers of the department (and the restaurant manager) edit and
+ * post it; everyone else sees it read-only once it's posted (Team schedule).
+ * Without a departmentId it opens your first managed department, else your
+ * first department, else the first one.
  */
 export function SchedulePage() {
   const { departmentId = '' } = useParams()
@@ -27,7 +30,6 @@ export function SchedulePage() {
   const { t, locale, errorMessage, departmentName } = useI18n()
   const weekParam = searchParams.get('week')
   const weekStart = isWeekStart(weekParam) ? weekParam : currentWeekStart()
-  const isRestaurantManager = !!user?.isRestaurantManager
 
   const [reloads, setReloads] = useState(0)
   const key = `${departmentId}/${weekStart}/${reloads}`
@@ -41,7 +43,6 @@ export function SchedulePage() {
     (user.isRestaurantManager || user.managedDepartments.some((d) => d.departmentId === departmentId))
 
   useEffect(() => {
-    if (!isRestaurantManager) return
     let cancelled = false
     api<{ departments: Department[] }>('/departments')
       .then(({ departments }) => {
@@ -51,7 +52,7 @@ export function SchedulePage() {
     return () => {
       cancelled = true
     }
-  }, [isRestaurantManager])
+  }, [])
 
   useEffect(() => {
     if (!departmentId) return
@@ -65,6 +66,7 @@ export function SchedulePage() {
         return { kind: 'ready', week, members }
       } catch (err) {
         if (err instanceof ApiError && err.status === 404) return { kind: 'missing' }
+        if (err instanceof ApiError && err.code === 'SCHEDULE_NOT_POSTED') return { kind: 'notPosted' }
         return { kind: 'error', message: errorMessage(err) }
       }
     })().then((data) => {
@@ -78,14 +80,16 @@ export function SchedulePage() {
   if (!user) return null
 
   if (!departmentId) {
-    const target = user.managedDepartments[0]?.departmentId ?? allDepartments?.[0]?.id
+    const target =
+      user.managedDepartments[0]?.departmentId ??
+      user.memberships[0]?.departmentId ??
+      allDepartments?.[0]?.id
     if (target) return <Navigate to={`/schedule/${target}?week=${weekStart}`} replace />
-    if (!isRestaurantManager) return <Navigate to="/" replace />
     return (
       <Screen>
         <p className="text-slate-500">{t('common.loading')}</p>
       </Screen>
-    ) // restaurant manager: waiting for the department list
+    ) // waiting for the department list
   }
 
   const loaded = result?.key === key ? result.data : null
@@ -107,27 +111,20 @@ export function SchedulePage() {
     }
   }
 
-  function updateSlots(shiftId: string, slots: Slot[]) {
+  function updateWeek(change: (week: DepartmentWeek) => DepartmentWeek) {
     setResult((prev) =>
       prev && prev.data.kind === 'ready'
-        ? {
-            ...prev,
-            data: {
-              ...prev.data,
-              week: {
-                ...prev.data.week,
-                shifts: prev.data.week.shifts.map((s) => (s.id === shiftId ? { ...s, slots } : s)),
-              },
-            },
-          }
+        ? { ...prev, data: { ...prev.data, week: change(prev.data.week) } }
         : prev
     )
   }
 
-  // Department tabs: all departments for the restaurant manager, otherwise the
-  // ones this user manages (only shown when there's more than one).
-  const switchable: Department[] =
-    allDepartments ?? user.managedDepartments.map((d) => ({ id: d.departmentId, name: d.departmentName }))
+  function updateSlots(shiftId: string, slots: Slot[]) {
+    updateWeek((week) => ({
+      ...week,
+      shifts: week.shifts.map((s) => (s.id === shiftId ? { ...s, slots } : s)),
+    }))
+  }
 
   const week = loaded?.kind === 'ready' ? loaded.week : null
   const days = week ? groupByDate(week.shifts) : []
@@ -141,12 +138,12 @@ export function SchedulePage() {
           : t('schedule.titleGeneric')
       }
     >
-      {switchable.length > 1 && (
+      {allDepartments && allDepartments.length > 1 && (
         <nav
           aria-label={t('schedule.department')}
           className="-mx-4 mb-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:px-0"
         >
-          {switchable.map((d) => (
+          {allDepartments.map((d) => (
             <Link
               key={d.id}
               to={`/schedule/${d.id}?week=${weekStart}`}
@@ -173,7 +170,7 @@ export function SchedulePage() {
         </button>
         <div className="text-center">
           <p className="font-medium text-slate-900">{formatWeekRange(weekStart, locale)}</p>
-          {week && (
+          {week?.canEdit && (
             <p
               className={`text-xs font-semibold tracking-wide uppercase ${
                 week.status === 'POSTED' ? 'text-green-700' : 'text-amber-600'
@@ -196,9 +193,15 @@ export function SchedulePage() {
 
       {loaded?.kind === 'error' && <ErrorMessage>{loaded.message}</ErrorMessage>}
 
+      {loaded?.kind === 'notPosted' && (
+        <Card className="md:max-w-md">
+          <p className="text-slate-700">{t('schedule.notPosted')}</p>
+        </Card>
+      )}
+
       {loaded?.kind === 'missing' && (
         <Card className="md:max-w-md">
-          <p className="text-slate-700">{t('schedule.noWeek')}</p>
+          <p className="text-slate-700">{canManage ? t('schedule.noWeek') : t('schedule.notPosted')}</p>
           {canManage && (
             <div className="mt-4 space-y-3">
               <p className="text-sm text-slate-500">{t('schedule.createHint')}</p>
@@ -211,8 +214,16 @@ export function SchedulePage() {
         </Card>
       )}
 
-      {/* Phone: one day per row. Desktop: a grid, up to the full 7-day week. */}
-      {week && loaded?.kind === 'ready' && (
+      {week && loaded?.kind === 'ready' && week.canEdit && (
+        <PostControls
+          week={week}
+          weekStart={weekStart}
+          onStatusChange={(status, postedAt) => updateWeek((w) => ({ ...w, status, postedAt }))}
+        />
+      )}
+
+      {/* Editor: one day per row on phones, a 2–7 column grid on desktop. */}
+      {week && loaded?.kind === 'ready' && week.canEdit && (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
           {days.map(([date, shifts]) => (
             <Card key={date} className="p-4 2xl:p-3">
@@ -223,7 +234,7 @@ export function SchedulePage() {
                     key={shift.id}
                     shift={shift}
                     departmentId={departmentId}
-                    canEdit={week.canEdit}
+                    canEdit
                     members={loaded.members}
                     onSlotsChange={(slots) => updateSlots(shift.id, slots)}
                   />
@@ -233,7 +244,108 @@ export function SchedulePage() {
           ))}
         </div>
       )}
+
+      {/* Team schedule (read-only): names only, so the full week fits in 7 columns sooner. */}
+      {week && !week.canEdit && (
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+          {days.map(([date, shifts]) => (
+            <Card key={date} className="p-4 xl:p-3">
+              <h2 className="mb-2 font-semibold text-slate-900">{formatDay(date, locale)}</h2>
+              <div className="space-y-3">
+                {shifts.map((shift) => (
+                  <ReadOnlyShift key={shift.id} shift={shift} currentUserId={user.id} />
+                ))}
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
     </Screen>
+  )
+}
+
+/**
+ * Post / unpost this department's week. Posting asks first (and says how many
+ * slots are still open); while posted, a banner explains that edits are live.
+ */
+function PostControls({
+  week,
+  weekStart,
+  onStatusChange,
+}: {
+  week: DepartmentWeek
+  weekStart: string
+  onStatusChange: (status: ScheduleStatus, postedAt: string | null) => void
+}) {
+  const { t, errorMessage } = useI18n()
+  const [confirming, setConfirming] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const openSlots = week.shifts.reduce((n, s) => n + s.slots.filter((slot) => !slot.user).length, 0)
+  const posted = week.status === 'POSTED'
+
+  async function setStatus(status: ScheduleStatus) {
+    setError(null)
+    setBusy(true)
+    try {
+      const result = await api<{ status: ScheduleStatus; postedAt: string | null }>(
+        `/schedules/${weekStart}/departments/${week.departmentId}`,
+        { method: 'PATCH', body: { status } }
+      )
+      onStatusChange(result.status, result.postedAt)
+      setConfirming(false)
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div
+      className={`mb-4 rounded-2xl p-4 md:max-w-2xl ${
+        posted ? 'bg-green-50 text-green-900' : 'bg-white shadow-sm'
+      }`}
+    >
+      {confirming ? (
+        <div className="space-y-3">
+          <p className="font-medium text-slate-900">{t('schedule.postConfirm')}</p>
+          {openSlots > 0 && (
+            <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              {openSlots === 1
+                ? t('schedule.openSlotsWarningOne')
+                : t('schedule.openSlotsWarning', { count: openSlots })}
+            </p>
+          )}
+          <p className="text-sm text-slate-600">{t('schedule.postHint')}</p>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => setConfirming(false)} disabled={busy}>
+              {t('common.cancel')}
+            </Button>
+            <Button onClick={() => setStatus('POSTED')} disabled={busy}>
+              {busy ? t('common.saving') : t('schedule.post')}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm">{posted ? t('schedule.postedBanner') : t('schedule.draftBanner')}</p>
+          <Button
+            variant={posted ? 'secondary' : 'primary'}
+            className="w-auto! py-2!"
+            disabled={busy}
+            onClick={() => (posted ? setStatus('DRAFT') : setConfirming(true))}
+          >
+            {posted ? t('schedule.unpost') : t('schedule.post')}
+          </Button>
+        </div>
+      )}
+      {error && (
+        <div className="mt-3">
+          <ErrorMessage>{error}</ErrorMessage>
+        </div>
+      )}
+    </div>
   )
 }
 

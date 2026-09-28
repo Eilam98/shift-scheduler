@@ -28,6 +28,12 @@ enum Language {
   EN
 }
 
+enum NotificationType {
+  SCHEDULE_POSTED // a week you're scheduled in was posted
+  SHIFT_ADDED // you were put on a slot of a posted week
+  SHIFT_REMOVED // you were taken off a slot of a posted week
+}
+
 model User {
   id                     String    @id @default(cuid())
   name                   String
@@ -44,6 +50,7 @@ model User {
   managedDepartments DepartmentManager[]
   slots              ShiftSlot[]
   availability       Availability[]
+  notifications      Notification[]
 }
 
 model Department {
@@ -55,6 +62,7 @@ model Department {
   payRates        DepartmentPayRate[]
   slots           ShiftSlot[]
   departmentWeeks DepartmentSchedule[]
+  notifications   Notification[]
 }
 
 // Who WORKS in a department (can be put on its slots).
@@ -121,6 +129,7 @@ model Schedule {
 
   shifts              Shift[]
   departmentSchedules DepartmentSchedule[]
+  notifications       Notification[]
 }
 
 // Per-department posting status for a given week
@@ -146,8 +155,9 @@ model Shift {
   startTime  String
   endTime    String
 
-  schedule Schedule    @relation(fields: [scheduleId], references: [id])
-  slots    ShiftSlot[]
+  schedule      Schedule       @relation(fields: [scheduleId], references: [id])
+  slots         ShiftSlot[]
+  notifications Notification[]
 
   @@unique([scheduleId, date, label])
 }
@@ -177,4 +187,24 @@ model Availability {
   user User @relation(fields: [userId], references: [id])
 
   @@unique([userId, date, label])
+}
+
+// In-app notification. Stores WHAT happened, not text — the client builds the
+// sentence in the reader's language. Web Push (step 9) will reuse these rows.
+model Notification {
+  id           String           @id @default(cuid())
+  userId       String // recipient
+  type         NotificationType
+  departmentId String
+  scheduleId   String // the week
+  shiftId      String? // SHIFT_ADDED / SHIFT_REMOVED
+  readAt       DateTime?
+  createdAt    DateTime         @default(now())
+
+  user       User       @relation(fields: [userId], references: [id])
+  department Department @relation(fields: [departmentId], references: [id])
+  schedule   Schedule   @relation(fields: [scheduleId], references: [id])
+  shift      Shift?     @relation(fields: [shiftId], references: [id])
+
+  @@index([userId, createdAt])
 }

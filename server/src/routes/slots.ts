@@ -1,13 +1,20 @@
 import { NextFunction, Request, Response, Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
+import { assignmentNotifications, isWeekPosted } from "../lib/notifications";
 import { authenticate, requireDepartmentManager } from "../middleware/auth";
 
 const router = Router();
 
-/** Loads the slot into res.locals.slot so permission checks can use its department. */
+/**
+ * Loads the slot (with its shift, for the week) into res.locals.slot so
+ * permission checks can use its department.
+ */
 async function loadSlot(req: Request, res: Response, next: NextFunction) {
-  const slot = await prisma.shiftSlot.findUnique({ where: { id: req.params.id as string } });
+  const slot = await prisma.shiftSlot.findUnique({
+    where: { id: req.params.id as string },
+    include: { shift: true },
+  });
   if (!slot) {
     return res.status(404).json({ error: "Slot not found" });
   }
@@ -63,18 +70,34 @@ router.patch("/:id", ...canEditSlot, async (req: Request, res: Response) => {
     }
   }
 
-  const updated = await prisma.shiftSlot.update({
-    where: { id: slot.id },
-    data: { userId },
-    include: { user: { select: { id: true, name: true } } },
-  });
+  // If the week is posted, the people taken off / put on the slot are notified
+  // (written together with the change in one batch transaction).
+  const notifications = (await isWeekPosted(prisma, slot.shift.scheduleId, slot.departmentId))
+    ? assignmentNotifications({ slot, oldUserId: slot.userId, newUserId: userId, actorId: req.user!.id })
+    : [];
+  const [updated] = await prisma.$transaction([
+    prisma.shiftSlot.update({
+      where: { id: slot.id },
+      data: { userId },
+      include: { user: { select: { id: true, name: true } } },
+    }),
+    prisma.notification.createMany({ data: notifications }),
+  ]);
 
   return res.status(200).json({ id: updated.id, user: updated.user });
 });
 
-// DELETE /api/slots/:id — remove the slot entirely.
-router.delete("/:id", ...canEditSlot, async (_req: Request, res: Response) => {
-  await prisma.shiftSlot.delete({ where: { id: res.locals.slot.id } });
+// DELETE /api/slots/:id — remove the slot entirely (its worker is notified if the week is posted).
+router.delete("/:id", ...canEditSlot, async (req: Request, res: Response) => {
+  const slot = res.locals.slot;
+  const notifications =
+    slot.userId && (await isWeekPosted(prisma, slot.shift.scheduleId, slot.departmentId))
+      ? assignmentNotifications({ slot, oldUserId: slot.userId, newUserId: null, actorId: req.user!.id })
+      : [];
+  await prisma.$transaction([
+    prisma.shiftSlot.delete({ where: { id: slot.id } }),
+    prisma.notification.createMany({ data: notifications }),
+  ]);
   return res.status(204).end();
 });
 

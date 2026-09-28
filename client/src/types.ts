@@ -76,3 +76,27 @@ export interface User extends DepartmentRoles {
 }
 
 export type Language = 'HE' | 'EN'
+
+// GET /api/shifts/mine (server/src/routes/shifts.ts)
+export interface MyShift {
+  slotId: string
+  date: string // "YYYY-MM-DD"
+  label: ShiftLabel
+  startTime: string
+  endTime: string
+  department: Department
+  weekStartDate: string
+}
+
+export type NotificationType = 'SCHEDULE_POSTED' | 'SHIFT_ADDED' | 'SHIFT_REMOVED'
+
+// GET /api/notifications (server/src/routes/notifications.ts)
+export interface AppNotification {
+  id: string
+  type: NotificationType
+  read: boolean
+  createdAt: string // ISO timestamp
+  department: Department
+  weekStartDate: string
+  shift: { date: string; label: ShiftLabel; startTime: string; endTime: string } | null
+}

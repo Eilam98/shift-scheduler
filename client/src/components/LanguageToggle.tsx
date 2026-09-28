@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { useAuth } from '../auth/authContext'
 import { useI18n } from '../i18n/i18nContext'
 import type { Language } from '../types'
@@ -39,12 +40,17 @@ export function LanguageToggle() {
 /**
  * Full-width strip at the top of every page holding the toggle. It spans the
  * whole window (above the side menu) and stays on screen when scrolling, so
- * the toggle is always at the same spot on the right whatever the language.
+ * the toggle is always at the same spot on the right whatever the language
+ * (`left` — e.g. the notification bell — stays on the left).
  * Height h-12 (3rem): AppShell's side menu sits just below it.
  */
-export function LanguageBar() {
+export function LanguageBar({ left }: { left?: ReactNode }) {
   return (
-    <div className="sticky top-0 z-20 flex h-12 items-center justify-end border-b border-slate-200 bg-white px-4" dir="ltr">
+    <div
+      className="sticky top-0 z-20 flex h-12 items-center justify-between border-b border-slate-200 bg-white px-4"
+      dir="ltr"
+    >
+      <div>{left}</div>
       <LanguageToggle />
     </div>
   )

@@ -2,13 +2,15 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { useAuth } from '../auth/authContext'
 import { ChevronEndIcon } from '../components/icons'
-import { Card, Screen } from '../components/ui'
+import { MyShiftRow } from '../components/MyShiftRow'
+import { Card, ErrorMessage, Screen } from '../components/ui'
 import { useI18n } from '../i18n/i18nContext'
 import { api } from '../lib/api'
 import { roleLabel } from '../lib/roles'
+import { useMyShifts } from '../lib/useMyShifts'
 import type { Department } from '../types'
 
-// Home: who you are, plus shortcuts to the schedules you can edit.
+// Home: who you are, your next shifts, and shortcuts to the schedules you can edit.
 export function HomePage() {
   const { user } = useAuth()
   const { t, departmentName } = useI18n()
@@ -56,6 +58,8 @@ export function HomePage() {
           )}
         </Card>
 
+        {user.memberships.length > 0 && <NextShiftsCard />}
+
         {editable.length > 0 && (
           <Card>
             <p className="font-semibold text-slate-900">{t('home.editSchedules')}</p>
@@ -75,5 +79,36 @@ export function HomePage() {
         )}
       </div>
     </Screen>
+  )
+}
+
+const NEXT_SHIFTS = 3
+
+/** The next few of my shifts (posted weeks), with a link to My shifts. */
+function NextShiftsCard() {
+  const { t } = useI18n()
+  const state = useMyShifts()
+
+  return (
+    <Card>
+      <div className="mb-3 flex items-baseline justify-between gap-3">
+        <p className="font-semibold text-slate-900">{t('home.nextShifts')}</p>
+        <Link to="/my-shifts" className="text-sm font-medium text-indigo-600">
+          {t('home.allShifts')}
+        </Link>
+      </div>
+      {state.status === 'loading' && <p className="text-sm text-slate-500">{t('common.loading')}</p>}
+      {state.status === 'error' && <ErrorMessage>{state.message}</ErrorMessage>}
+      {state.status === 'ready' &&
+        (state.upcoming.length === 0 ? (
+          <p className="text-sm text-slate-500">{t('myShifts.noUpcoming')}</p>
+        ) : (
+          <div className="space-y-2">
+            {state.upcoming.slice(0, NEXT_SHIFTS).map((shift) => (
+              <MyShiftRow key={shift.slotId} shift={shift} />
+            ))}
+          </div>
+        ))}
+    </Card>
   )
 }

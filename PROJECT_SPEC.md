@@ -33,7 +33,9 @@ Rules:
 - A `Schedule` is one week, **Sunday–Saturday**. Every day has exactly two shifts: **MORNING** and **EVENING** (default times from `ShiftTemplate`, overridable per shift).
 - A `Shift` is shared by all departments; each department staffs it with its own `ShiftSlot` rows (empty or filled by one worker). No stored "required count" — managers add/remove slots.
 - A slot can only be filled by a **member** of its department; a person can hold **one slot per shift** across all departments.
-- Posting is **per department per week** (`DepartmentSchedule.status` DRAFT/POSTED). Workers see a department's week (the whole team, all names) **only once it is posted**.
+- Posting is **per department per week** (`DepartmentSchedule.status` DRAFT/POSTED). Workers see a department's week (the whole team, all names) **only once it is posted**. Posting with empty slots is allowed after a warning; a manager can unpost.
+- Posted weeks **stay editable** — changes are live for workers.
+- **Notifications (in-app):** when a week is posted, everyone with a shift in it is notified; after posting, a worker added to or removed from a slot is notified (nobody is notified of their own change; drafts notify nobody). Stored as structured rows and translated on display. Phone push (Web Push) reuses them in step 9.
 - Only department managers (and the restaurant manager) change a schedule, including swaps. Later: a **Request box** where workers ask for a swap and managers approve.
 
 ## Availability
@@ -142,6 +144,20 @@ model TipPool {
   createdAt   DateTime @default(now())
 }
 
+// ✅ in-app notification (structured — the client builds the text in the reader's language)
+enum NotificationType { SCHEDULE_POSTED SHIFT_ADDED SHIFT_REMOVED }
+model Notification {
+  id           String           @id @default(cuid())
+  userId       String                              // recipient
+  type         NotificationType
+  departmentId String
+  scheduleId   String                              // the week
+  shiftId      String?                             // SHIFT_ADDED / SHIFT_REMOVED
+  readAt       DateTime?
+  createdAt    DateTime         @default(now())
+  @@index([userId, createdAt])
+}
+
 // 🔜 later
 model ShiftSwapRequest { id, requesterId, slotId, targetUserId?, status, createdAt }
 ```
@@ -154,16 +170,16 @@ Every page works on **phone** (single column, bottom tab bar) and **desktop** (s
 **Everyone**
 1. **Login** ✅
 2. **Change password** ✅ — forced on first login; also from Profile (`/profile/password`)
-3. **Home** — my next shifts, availability deadline countdown; managers: to-dos (weeks not posted, missing availability, flagged clock-ins)
-4. **My shifts** — upcoming and past shifts, department, times
-5. **Team schedule** — any department's *posted* week, all names, week navigation
+3. **Home** — my next shifts ✅, availability deadline countdown; managers: to-dos (weeks not posted, missing availability, flagged clock-ins)
+4. **My shifts** ✅ — upcoming and past 30 days, department, times (posted weeks only)
+5. **Team schedule** ✅ — any department's *posted* week, all names, week navigation (same `/schedule` page as the editor, read-only)
 6. **Availability** — next week's 14 shifts, can/can't + note; locked after the deadline
 8. **My hours & earnings** — monthly: hours per department, fixed pay, tip shares, top-up, bonus, total
 9. **Profile** ✅ — language, change password, my details
 
 **Department managers** (restaurant manager: all departments)
 
-10. **Schedule editor** ✅ (+ post/unpost, availability next to names, swaps)
+10. **Schedule editor** ✅ (post/unpost ✅; + availability next to names in step 5)
 11. **Availability overview** — workers × shifts grid, who hasn't submitted
 12. **Attendance** — station clock-ins for the department: fix missed clock-outs, review flagged entries
 
@@ -186,16 +202,20 @@ Every page works on **phone** (single column, bottom tab bar) and **desktop** (s
 
 18. **Request box** — workers request swaps, managers approve/reject
 
+**Everyone**
+
+19. **Notifications** ✅ — bell with unread count in the top bar (every page); list at `/notifications`, opening it marks all read; each item links to the week
+
 ## Build order
 1. ✅ Scaffolding, database, seed, auth, worker management, schedule editor.
 2. ✅ **Data model v2:** `DepartmentMembership` + `DepartmentManager` (migrate existing data), Shift Managers department, `DepartmentPayRate`, `RestaurantSettings`, `User.isActive/language/pinHash`. Update auth `user` shape, middleware and the Workers page.
 3. ✅ **App shell:** i18n (HE default + EN, RTL), responsive navigation (bottom tabs on phone, side menu on desktop). Convert existing pages.
-4. **Posting + Team schedule + My shifts.**
+4. ✅ **Posting + Team schedule + My shifts** (+ in-app notifications).
 5. **Availability** with deadline (+ Restaurant settings page).
 6. **Time clock station + Attendance** (PIN, flagged entries).
 7. **End-of-shift report** (manual hours + tip pool).
 8. **Departments & pay, My hours & earnings, Payroll report.**
-9. **PWA + deployment** (installable on iPhone, hosted server/client).
+9. **PWA + deployment** (installable on iPhone, hosted server/client; Web Push for the existing notifications).
 10. Later: Request box.
 
 ## Auth API (built)

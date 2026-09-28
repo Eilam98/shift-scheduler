@@ -2,7 +2,13 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { addDays, parseWeekStart, toDateString } from "../lib/dates";
-import { authenticate, canManageDepartment, requireAnyManager } from "../middleware/auth";
+import { notifyWeekPosted } from "../lib/notifications";
+import {
+  authenticate,
+  canManageDepartment,
+  requireAnyManager,
+  requireDepartmentManager,
+} from "../middleware/auth";
 
 const router = Router();
 
@@ -125,6 +131,59 @@ router.get("/:weekStart/departments/:departmentId", async (req, res) => {
     })),
   });
 });
+
+const statusSchema = z.object({
+  status: z.enum(["POSTED", "DRAFT"]),
+});
+
+/**
+ * PATCH /api/schedules/:weekStart/departments/:departmentId — post (or
+ * unpost) one department's week. Posting tells everyone with a shift in it.
+ * Posted weeks stay editable; later changes notify the people affected
+ * (see routes/slots.ts).
+ */
+router.patch(
+  "/:weekStart/departments/:departmentId",
+  requireDepartmentManager((req) => req.params.departmentId as string),
+  async (req, res) => {
+    const parsed = statusSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "status must be POSTED or DRAFT" });
+    }
+    const weekStart = parseWeekStart(req.params.weekStart as string);
+    if (!weekStart) {
+      return res.status(400).json({ error: "weekStart must be a Sunday in YYYY-MM-DD format" });
+    }
+    const departmentId = req.params.departmentId as string;
+    const { status } = parsed.data;
+
+    const schedule = await prisma.schedule.findUnique({ where: { weekStartDate: weekStart } });
+    const current = schedule
+      ? await prisma.departmentSchedule.findUnique({
+          where: { scheduleId_departmentId: { scheduleId: schedule.id, departmentId } },
+        })
+      : null;
+    if (!schedule || !current) {
+      return res.status(404).json({ error: "No schedule for this week yet" });
+    }
+    if (current.status === status) {
+      return res.status(200).json({ status: current.status, postedAt: current.postedAt });
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const week = await tx.departmentSchedule.update({
+        where: { id: current.id },
+        data: { status, postedAt: status === "POSTED" ? new Date() : null },
+      });
+      if (status === "POSTED") {
+        await notifyWeekPosted(tx, { scheduleId: schedule.id, departmentId, actorId: req.user!.id });
+      }
+      return week;
+    });
+
+    return res.status(200).json({ status: updated.status, postedAt: updated.postedAt });
+  }
+);
 
 function toScheduleResponse(schedule: { id: string; weekStartDate: Date }) {
   return { id: schedule.id, weekStartDate: toDateString(schedule.weekStartDate) };

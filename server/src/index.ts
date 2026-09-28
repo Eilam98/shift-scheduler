@@ -8,6 +8,7 @@ import scheduleRoutes from "./routes/schedules";
 import shiftRoutes from "./routes/shifts";
 import slotRoutes from "./routes/slots";
 import settingsRoutes from "./routes/settings";
+import notificationRoutes from "./routes/notifications";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -26,6 +27,7 @@ app.use("/api/schedules", scheduleRoutes);
 app.use("/api/shifts", shiftRoutes);
 app.use("/api/slots", slotRoutes);
 app.use("/api/settings", settingsRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 // Express 5 forwards errors thrown in async handlers here. Log the details
 // server-side and return a generic JSON 500 instead of Express's HTML page.

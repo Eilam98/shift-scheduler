@@ -1,11 +1,53 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
+import { addDays, parseDate, toDateString, todayInTimeZone } from "../lib/dates";
 import { authenticate, requireDepartmentManager } from "../middleware/auth";
 
 const router = Router();
 
 router.use(authenticate);
+
+/** How far back GET /mine goes. */
+const PAST_DAYS = 30;
+const LABEL_ORDER = { MORNING: 0, EVENING: 1 } as const;
+
+/**
+ * GET /api/shifts/mine — my shifts from PAST_DAYS ago onward, only in weeks
+ * my slot's department has POSTED (drafts stay private to managers). `today`
+ * is in the restaurant time zone, so the client can split upcoming / past.
+ */
+router.get("/mine", async (req, res) => {
+  const settings = await prisma.restaurantSettings.findUnique({ where: { id: 1 } });
+  const today = todayInTimeZone(settings?.timeZone ?? "Asia/Jerusalem");
+
+  const slots = await prisma.shiftSlot.findMany({
+    where: { userId: req.user!.id, shift: { date: { gte: addDays(parseDate(today)!, -PAST_DAYS) } } },
+    include: {
+      department: true,
+      shift: { include: { schedule: { include: { departmentSchedules: true } } } },
+    },
+  });
+
+  const shifts = slots
+    .filter((slot) =>
+      slot.shift.schedule.departmentSchedules.some(
+        (d) => d.departmentId === slot.departmentId && d.status === "POSTED"
+      )
+    )
+    .map((slot) => ({
+      slotId: slot.id,
+      date: toDateString(slot.shift.date),
+      label: slot.shift.label,
+      startTime: slot.shift.startTime,
+      endTime: slot.shift.endTime,
+      department: { id: slot.department.id, name: slot.department.name },
+      weekStartDate: toDateString(slot.shift.schedule.weekStartDate),
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date) || LABEL_ORDER[a.label] - LABEL_ORDER[b.label]);
+
+  return res.status(200).json({ today, shifts });
+});
 
 const createSlotSchema = z.object({
   departmentId: z.string().min(1),

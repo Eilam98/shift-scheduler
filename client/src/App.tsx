@@ -5,6 +5,8 @@ import { useI18n } from './i18n/i18nContext'
 import { ChangePasswordPage, ForcedPasswordChangePage } from './pages/ChangePasswordPage'
 import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
+import { MyShiftsPage } from './pages/MyShiftsPage'
+import { NotificationsPage } from './pages/NotificationsPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { SchedulePage } from './pages/SchedulePage'
 import { WorkersPage } from './pages/WorkersPage'
@@ -28,6 +30,8 @@ function App() {
           element={user.isRestaurantManager ? <WorkersPage /> : <Navigate to="/" replace />}
         />
         <Route path="/schedule/:departmentId?" element={<SchedulePage />} />
+        <Route path="/my-shifts" element={<MyShiftsPage />} />
+        <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/profile/password" element={<ChangePasswordPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />

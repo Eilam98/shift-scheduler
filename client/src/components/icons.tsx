@@ -52,6 +52,23 @@ export function UserIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function BellIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M6 9a6 6 0 0 1 12 0c0 5 2 6.5 2 6.5H4S6 14 6 9M10 19a2 2 0 0 0 4 0" />
+    </Icon>
+  )
+}
+
+export function ClockIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </Icon>
+  )
+}
+
 /** Points toward the end of the line: right in LTR, left in RTL. */
 export function ChevronEndIcon({ className = '', ...props }: SVGProps<SVGSVGElement>) {
   return (
