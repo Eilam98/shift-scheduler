@@ -1,13 +1,15 @@
-# Shift Scheduler — Project Conventions
+# Shift Organizer — Project Conventions
 
-See `PROJECT_SPEC.md` in this repo root for the full data model (Prisma schema), the complete auth API contract, and the suggested build order. Read it before starting any feature work — this file only has the condensed conventions.
+`PROJECT_SPEC.md` is the source of truth: product rules (roles, pay, tips, time tracking, availability deadline), the **target** data model (✅ built / 🔜 planned), every page, and the build order. Read it before any feature work; update it first when a decision changes. This file has the condensed conventions and current code layout.
+
+One restaurant · responsive **desktop + phone** (PWA) · **Hebrew default (RTL)** + English.
 
 ## Working style
 - The developer is learning: build one complete feature at a time, test it, then summarize what was built and the key concepts concisely.
 - Git: commit after each finished, verified step. Push to GitHub only when asked. Feature work on `feature/<name>` branches.
 
 ## Stack
-- Frontend: React (Vite) + TypeScript, Tailwind CSS — built mobile-first as a PWA (see "Mobile / iPhone")
+- Frontend: React (Vite) + TypeScript, Tailwind CSS — responsive (phone + desktop), installable PWA (see "Platforms & language")
 - Backend: Express 5 + TypeScript (Express 5 forwards errors thrown in async handlers to the JSON error handler in `server/src/index.ts`)
 - Database: PostgreSQL on Neon, via Prisma ORM (v5)
 - Auth: Custom JWT (no third-party auth library), passwords hashed with bcrypt 6
@@ -40,12 +42,15 @@ See `PROJECT_SPEC.md` in this repo root for the full data model (Prisma schema),
 - User IDs are auto-generated cuids — never use national ID numbers or other real-world identifiers as IDs.
 
 ## Domain rules (important — enforce these in middleware, not scattered checks)
-- Roles: Restaurant Manager (global), Department Manager (scoped to one department), Worker
-- Only the Restaurant Manager can create workers and assign their departments
-- A user can be manager of at most one department (validated in `server/src/routes/users.ts`)
+Full rules in PROJECT_SPEC.md. Key ones:
+- Roles: Restaurant Manager (one; has every department manager's permissions; manages the Shift Managers department), Department Manager (manages at most one department — **independent of working in it**; a department can have several managers), Worker, Shift manager (member of Shift Managers; any shift manager fills in end-of-shift reports)
+- Only the Restaurant Manager can create workers, assign departments/manager roles, set pay and settings
+- CURRENT CODE: membership and management both live in `UserDepartment` (`isManager`) and `req.user.departments[].isManager`. Build step 2 splits them into `DepartmentMembership` + `DepartmentManager`
+- Money is integer agorot (70 NIS = 7000), never floats. Pay rates keep history (`effectiveFrom`)
+- Clock-dependent rules (availability deadline, clock-in) use the restaurant time zone `Asia/Jerusalem`, not the server's
 - A Department Manager can only create/edit/delete ShiftSlots and Shifts for their own department
 - Workers can view any department's schedule, but only once that department's DepartmentSchedule.status = POSTED
-- Availability is submitted per (date, shiftLabel), independent of Shift rows
+- Availability is submitted per (date, shiftLabel), independent of Shift rows; locked after the deadline (default Wednesday 23:59 before the week, configurable)
 - Emails are stored and compared lowercase
 - Weeks run Sunday–Saturday (`WEEK_START_DAY` in server + client `lib/dates.ts`). Dates are stored as UTC midnight and sent as "YYYY-MM-DD"
 - Creating a week (any manager, idempotent) creates the Schedule, 14 Shifts from ShiftTemplate times, and a DRAFT DepartmentSchedule per department
@@ -58,9 +63,10 @@ See `PROJECT_SPEC.md` in this repo root for the full data model (Prisma schema),
 - Schema changes: edit `schema.prisma`, then `npx prisma migrate dev --name <what_changed>`, and commit the new migration folder together with the schema change
 - Commit messages: short imperative present tense ("Add shift slot endpoint", not "Added")
 
-## Mobile / iPhone
-- Target: installable PWA ("Add to Home Screen" in Safari). Design every screen mobile-first.
-- Later/optional: wrap the same React app with Capacitor for the App Store.
+## Platforms & language
+- Every page must work on phone (single column, bottom tab bar) and desktop (side menu, wider layouts). Build mobile-first, then add `md:`/`lg:` layouts.
+- Installable PWA ("Add to Home Screen" in Safari). Later/optional: Capacitor wrap for the App Store.
+- From build step 3 on: all UI text goes through translations (HE default + EN) and layouts use logical Tailwind classes (`ms-`/`me-`/`ps-`/`pe-`/`start-`/`end-`, `text-start`) — never `left`/`right` — so RTL works.
 
 ## Progress
 - [x] Server scaffolding, auth + user routes (code)
@@ -72,8 +78,7 @@ See `PROJECT_SPEC.md` in this repo root for the full data model (Prisma schema),
 - [x] Worker management (`/workers`, restaurant manager): list users, add worker with generated temporary password + departments, edit department assignments
 - [ ] Not built yet: delete/deactivate worker, edit name/email, reset a worker's password (no API yet)
 - [x] Schedules part 1 — editor: create week, add/remove slots, assign workers (dept manager / restaurant manager)
-- [ ] Schedules part 2 — post/unpost a department week; workers see posted schedules ("My shifts" + browse departments)
-- [ ] Schedules part 3 — availability: workers submit per (date, label); managers see it when assigning
+- [ ] **Next: build step 2 — data model v2** (PROJECT_SPEC.md "Build order"), then: app shell (i18n/RTL + responsive nav) → posting + team schedule + my shifts → availability + settings → time clock station + attendance → end-of-shift report → pay & payroll → PWA + deployment
 - [ ] Later: edit a single shift's times (shared across departments — decide who may)
 - Testing tip: create temporary test users with `@example.test` emails and delete them afterwards (UserDepartment rows first) — never test with the real manager account
 
