@@ -39,9 +39,10 @@ Rules:
 - Only department managers (and the restaurant manager) change a schedule, including swaps. Later: a **Request box** where workers ask for a swap and managers approve.
 
 ## Availability
-- Submitted per (date, MORNING/EVENING), independent of `Shift` rows.
-- **Deadline:** Wednesday 23:59 (Israel time) before the week starts *(assumption: for the week starting Sunday S, the deadline is Wednesday S−4 at 23:59)*. After the deadline the worker can't submit or change it. The restaurant manager can change the deadline day/time in settings.
-- Managers see availability next to names while building the schedule.
+- Submitted per (date, MORNING/EVENING), independent of `Shift` rows. **Three levels:** can / prefer not / can't, plus an optional note. A week opens with every shift on "can"; the worker changes what differs and submits all 14 at once. No minimum number of shifts.
+- **Deadline:** Wednesday 23:59 (Israel time) before the week starts *(for the week starting Sunday S, the deadline is Wednesday S−4 at 23:59; the week locks when that minute ends)*. After the deadline the worker can't submit or change it. The restaurant manager can change the deadline day/time in settings.
+- **Workers' submissions (הגשות העובדים):** a manager sees the submissions of everyone who works in a department they manage (restaurant manager: everyone) and **can change them at any time, even after the deadline** — e.g. a worker who missed it contacts the manager outside the app. A submission is per person, so a change applies in every department the worker belongs to. Changes by a manager are marked (`updatedById`).
+- Managers see availability next to names while building the schedule (✓ can, ~ prefer not, ? no answer, ✗ can't); it informs, it doesn't block.
 
 ## Settings & language
 - `RestaurantSettings` (one row): availability deadline day + time, default language (HE), time zone (`Asia/Jerusalem`), default shift times.
@@ -109,7 +110,8 @@ model Schedule { id, weekStartDate @unique (Sunday) }                           
 model DepartmentSchedule { id, scheduleId, departmentId, status, postedAt; @@unique([scheduleId, departmentId]) } // ✅
 model Shift { id, scheduleId, date, label, startTime, endTime; @@unique([scheduleId, date, label]) }            // ✅
 model ShiftSlot { id, shiftId, departmentId, userId? }                                // ✅
-model Availability { id, userId, date, label, available, note?; @@unique([userId, date, label]) } // ✅ table, 🔜 UI
+enum AvailabilityStatus { AVAILABLE PREFER_NOT UNAVAILABLE }                                    // ✅
+model Availability { id, userId, date, label, status, note?, updatedAt, updatedById?; @@unique([userId, date, label]) } // ✅
 
 // ✅ one row (seeded)
 model RestaurantSettings {
@@ -170,17 +172,17 @@ Every page works on **phone** (single column, bottom tab bar) and **desktop** (s
 **Everyone**
 1. **Login** ✅
 2. **Change password** ✅ — forced on first login; also from Profile (`/profile/password`)
-3. **Home** — my next shifts ✅, availability deadline countdown; managers: to-dos (weeks not posted, missing availability, flagged clock-ins)
+3. **Home** — my next shifts ✅, availability deadline countdown ✅; managers: to-dos (weeks not posted, missing availability, flagged clock-ins)
 4. **My shifts** ✅ — upcoming and past 30 days, department, times (posted weeks only)
 5. **Team schedule** ✅ — any department's *posted* week, all names, week navigation (same `/schedule` page as the editor, read-only)
-6. **Availability** — next week's 14 shifts, can/can't + note; locked after the deadline
+6. **Availability** ✅ — a week's 14 shifts, can / prefer not / can't + note; locked after the deadline. Managers get a **הגשות העובדים** toggle on the same page (page 11)
 8. **My hours & earnings** — monthly: hours per department, fixed pay, tip shares, top-up, bonus, total
 9. **Profile** ✅ — language, change password, my details
 
 **Department managers** (restaurant manager: all departments)
 
-10. **Schedule editor** ✅ (post/unpost ✅; + availability next to names in step 5)
-11. **Availability overview** — workers × shifts grid, who hasn't submitted
+10. **Schedule editor** ✅ (post/unpost, availability next to names)
+11. **Workers' submissions (הגשות העובדים)** ✅ — workers × shifts, who hasn't submitted; managers can edit any of their workers' weeks at any time
 12. **Attendance** — station clock-ins for the department: fix missed clock-outs, review flagged entries
 
 **Shift managers**
@@ -195,7 +197,7 @@ Every page works on **phone** (single column, bottom tab bar) and **desktop** (s
 
 14. **Workers** ✅ (+ "works in" and "manages" chosen separately, PIN, per-department hourly bonus, edit details, deactivate, reset password)
 15. **Departments & pay** — pay type, rate/minimum, effective date
-16. **Restaurant settings** — availability deadline, default language, default shift times
+16. **Restaurant settings** ✅ — availability deadline, default language, default shift times (new weeks only)
 17. **Payroll report** — month × all workers: hours, pay, tips, top-up, bonus; export CSV/Excel
 
 **Later**
@@ -211,7 +213,7 @@ Every page works on **phone** (single column, bottom tab bar) and **desktop** (s
 2. ✅ **Data model v2:** `DepartmentMembership` + `DepartmentManager` (migrate existing data), Shift Managers department, `DepartmentPayRate`, `RestaurantSettings`, `User.isActive/language/pinHash`. Update auth `user` shape, middleware and the Workers page.
 3. ✅ **App shell:** i18n (HE default + EN, RTL), responsive navigation (bottom tabs on phone, side menu on desktop). Convert existing pages.
 4. ✅ **Posting + Team schedule + My shifts** (+ in-app notifications).
-5. **Availability** with deadline (+ Restaurant settings page).
+5. ✅ **Availability** with deadline (+ Restaurant settings page).
 6. **Time clock station + Attendance** (PIN, flagged entries).
 7. **End-of-shift report** (manual hours + tip pool).
 8. **Departments & pay, My hours & earnings, Payroll report.**

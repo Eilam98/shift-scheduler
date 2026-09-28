@@ -104,3 +104,17 @@ export function requireAnyManager(req: Request, res: Response, next: NextFunctio
   }
   next();
 }
+
+/**
+ * May `user` see and change `targetUserId`'s availability? The restaurant
+ * manager: anyone. A department manager: anyone who works in a department
+ * they manage.
+ */
+export async function canManageUser(user: AuthenticatedUser, targetUserId: string): Promise<boolean> {
+  if (user.isRestaurantManager) return true;
+  if (user.managedDepartmentIds.length === 0) return false;
+  const membership = await prisma.departmentMembership.findFirst({
+    where: { userId: targetUserId, departmentId: { in: user.managedDepartmentIds } },
+  });
+  return membership !== null;
+}

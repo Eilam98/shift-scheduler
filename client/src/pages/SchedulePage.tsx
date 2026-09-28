@@ -1,17 +1,18 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate, useParams, useSearchParams } from 'react-router'
 import { useAuth } from '../auth/authContext'
-import { ChevronEndIcon, ChevronStartIcon } from '../components/icons'
 import { ReadOnlyShift } from '../components/ReadOnlyShift'
 import { ShiftCard } from '../components/ShiftCard'
 import { Button, Card, ErrorMessage, Screen } from '../components/ui'
+import { WeekNav } from '../components/WeekNav'
 import { useI18n } from '../i18n/i18nContext'
 import { ApiError, api } from '../lib/api'
-import { addDays, currentWeekStart, formatDay, formatWeekRange, isWeekStart } from '../lib/dates'
-import type { Department, DepartmentWeek, Member, ScheduleStatus, Slot } from '../types'
+import { STATUS_CLASSES, STATUS_LABEL, STATUS_SYMBOL } from '../lib/availability'
+import { addDays, currentWeekStart, formatDay, isWeekStart } from '../lib/dates'
+import type { Department, DepartmentWeek, Member, ScheduleStatus, Slot, TeamAvailability } from '../types'
 
 type Loaded =
-  | { kind: 'ready'; week: DepartmentWeek; members: Member[] }
+  | { kind: 'ready'; week: DepartmentWeek; members: Member[]; availability: TeamAvailability['workers'] }
   | { kind: 'missing' } // no schedule created for this week yet
   | { kind: 'notPosted' } // exists, but this department hasn't posted it (viewers only)
   | { kind: 'error'; message: string }
@@ -60,10 +61,13 @@ export function SchedulePage() {
     ;(async (): Promise<Loaded> => {
       try {
         const week = await api<DepartmentWeek>(`/schedules/${weekStart}/departments/${departmentId}`)
-        const members = week.canEdit
-          ? (await api<{ members: Member[] }>(`/departments/${departmentId}/members`)).members
-          : []
-        return { kind: 'ready', week, members }
+        if (!week.canEdit) return { kind: 'ready', week, members: [], availability: [] }
+        // Editors also get everyone's availability for this week, shown next to names.
+        const [{ members }, team] = await Promise.all([
+          api<{ members: Member[] }>(`/departments/${departmentId}/members`),
+          api<TeamAvailability>(`/availability/team?week=${weekStart}&departmentId=${departmentId}`),
+        ])
+        return { kind: 'ready', week, members, availability: team.workers }
       } catch (err) {
         if (err instanceof ApiError && err.status === 404) return { kind: 'missing' }
         if (err instanceof ApiError && err.code === 'SCHEDULE_NOT_POSTED') return { kind: 'notPosted' }
@@ -160,34 +164,17 @@ export function SchedulePage() {
         </nav>
       )}
 
-      <div className="mb-4 flex items-center justify-between rounded-2xl bg-white p-2 shadow-sm md:max-w-md">
-        <button
-          aria-label={t('schedule.prevWeek')}
-          onClick={() => goToWeek(-7)}
-          className="rounded-lg px-4 py-2 text-slate-600 hover:bg-slate-100"
-        >
-          <ChevronStartIcon className="size-5" />
-        </button>
-        <div className="text-center">
-          <p className="font-medium text-slate-900">{formatWeekRange(weekStart, locale)}</p>
-          {week?.canEdit && (
-            <p
-              className={`text-xs font-semibold tracking-wide uppercase ${
-                week.status === 'POSTED' ? 'text-green-700' : 'text-amber-600'
-              }`}
-            >
-              {week.status === 'POSTED' ? t('schedule.posted') : t('schedule.draft')}
-            </p>
-          )}
-        </div>
-        <button
-          aria-label={t('schedule.nextWeek')}
-          onClick={() => goToWeek(7)}
-          className="rounded-lg px-4 py-2 text-slate-600 hover:bg-slate-100"
-        >
-          <ChevronEndIcon className="size-5" />
-        </button>
-      </div>
+      <WeekNav weekStart={weekStart} onPrev={() => goToWeek(-7)} onNext={() => goToWeek(7)}>
+        {week?.canEdit && (
+          <p
+            className={`text-xs font-semibold tracking-wide uppercase ${
+              week.status === 'POSTED' ? 'text-green-700' : 'text-amber-600'
+            }`}
+          >
+            {week.status === 'POSTED' ? t('schedule.posted') : t('schedule.draft')}
+          </p>
+        )}
+      </WeekNav>
 
       {!loaded && <p className="text-slate-500">{t('common.loading')}</p>}
 
@@ -222,6 +209,8 @@ export function SchedulePage() {
         />
       )}
 
+      {week && loaded?.kind === 'ready' && week.canEdit && <AvailabilityLegend />}
+
       {/* Editor: one day per row on phones, a 2–7 column grid on desktop. */}
       {week && loaded?.kind === 'ready' && week.canEdit && (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
@@ -236,6 +225,7 @@ export function SchedulePage() {
                     departmentId={departmentId}
                     canEdit
                     members={loaded.members}
+                    availability={loaded.availability}
                     onSlotsChange={(slots) => updateSlots(shift.id, slots)}
                   />
                 ))}
@@ -261,6 +251,21 @@ export function SchedulePage() {
         </div>
       )}
     </Screen>
+  )
+}
+
+/** What ✓ ~ ? ✗ next to names mean. */
+function AvailabilityLegend() {
+  const { t } = useI18n()
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+      <span>{t('availability.legend')}</span>
+      {(['AVAILABLE', 'PREFER_NOT', 'NONE', 'UNAVAILABLE'] as const).map((s) => (
+        <span key={s} className={`rounded-full px-2 py-0.5 font-medium ${STATUS_CLASSES[s]}`}>
+          {STATUS_SYMBOL[s]} {t(STATUS_LABEL[s])}
+        </span>
+      ))}
+    </div>
   )
 }
 

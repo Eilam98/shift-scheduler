@@ -100,3 +100,42 @@ export interface AppNotification {
   weekStartDate: string
   shift: { date: string; label: ShiftLabel; startTime: string; endTime: string } | null
 }
+
+export type AvailabilityStatus = 'AVAILABLE' | 'PREFER_NOT' | 'UNAVAILABLE'
+
+export interface AvailabilityEntry {
+  date: string
+  label: ShiftLabel
+  status: AvailabilityStatus
+  note: string | null
+}
+
+// Deadline info shared by the availability responses (server/src/routes/availability.ts)
+export interface AvailabilityWeekInfo {
+  weekStartDate: string
+  deadline: string // ISO instant of the deadline minute
+  timeZone: string
+  locked: boolean
+}
+
+// One person's week; updatedBy = the manager who last changed it (null = the worker)
+export interface WeekSubmission {
+  submitted: boolean
+  updatedAt: string | null
+  updatedBy: { id: string; name: string } | null
+  entries: AvailabilityEntry[] // always 14: Sun morning … Sat evening
+}
+
+// GET /api/availability/team
+export interface TeamAvailability extends AvailabilityWeekInfo {
+  workers: (WeekSubmission & { id: string; name: string; departments: DepartmentRef[] })[]
+}
+
+// GET/PATCH /api/settings (server/src/routes/settings.ts)
+export interface RestaurantSettings {
+  availabilityDeadlineDay: number // 0=Sun … 6=Sat
+  availabilityDeadlineTime: string // "HH:mm"
+  defaultLanguage: Language
+  timeZone: string
+  shiftTemplates: { label: ShiftLabel; defaultStartTime: string; defaultEndTime: string }[]
+}

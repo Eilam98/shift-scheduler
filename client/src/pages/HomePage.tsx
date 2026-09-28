@@ -6,9 +6,11 @@ import { MyShiftRow } from '../components/MyShiftRow'
 import { Card, ErrorMessage, Screen } from '../components/ui'
 import { useI18n } from '../i18n/i18nContext'
 import { api } from '../lib/api'
+import { describeDeadline } from '../lib/availability'
+import { formatWeekRange } from '../lib/dates'
 import { roleLabel } from '../lib/roles'
 import { useMyShifts } from '../lib/useMyShifts'
-import type { Department } from '../types'
+import type { AvailabilityWeekInfo, Department, WeekSubmission } from '../types'
 
 // Home: who you are, your next shifts, and shortcuts to the schedules you can edit.
 export function HomePage() {
@@ -57,6 +59,8 @@ export function HomePage() {
             </p>
           )}
         </Card>
+
+        {user.memberships.length > 0 && <AvailabilityCard />}
 
         {user.memberships.length > 0 && <NextShiftsCard />}
 
@@ -109,6 +113,49 @@ function NextShiftsCard() {
             ))}
           </div>
         ))}
+    </Card>
+  )
+}
+
+/** The next week still open for availability: deadline countdown + submitted or not. */
+function AvailabilityCard() {
+  const { t, locale } = useI18n()
+  const [data, setData] = useState<(AvailabilityWeekInfo & WeekSubmission) | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    api<AvailabilityWeekInfo & WeekSubmission>('/availability/me')
+      .then((result) => {
+        if (!cancelled) setData(result)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  if (!data) return null
+  const { when, relative } = describeDeadline(data.deadline, data.timeZone, locale)
+
+  return (
+    <Card className={data.submitted ? '' : 'ring-2 ring-amber-300'}>
+      <p className="font-semibold text-slate-900">
+        {t('home.availability', { week: formatWeekRange(data.weekStartDate, locale) })}
+      </p>
+      <p className="mt-1 text-sm text-amber-700">{t('availability.due', { when, relative })}</p>
+      <p className={`mt-1 text-sm font-medium ${data.submitted ? 'text-green-700' : 'text-slate-600'}`}>
+        {data.submitted ? t('availability.submitted') : t('availability.notSubmitted')}
+      </p>
+      <Link
+        to={`/availability?week=${data.weekStartDate}`}
+        className={`mt-4 inline-block rounded-lg px-4 py-2.5 text-sm font-semibold ${
+          data.submitted
+            ? 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+            : 'bg-indigo-600 text-white hover:bg-indigo-700'
+        }`}
+      >
+        {data.submitted ? t('home.reviewAvailability') : t('home.fillAvailability')}
+      </Link>
     </Card>
   )
 }

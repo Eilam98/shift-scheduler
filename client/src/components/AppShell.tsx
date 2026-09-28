@@ -1,33 +1,12 @@
-import type { ComponentType, SVGProps } from 'react'
-import { NavLink, Outlet } from 'react-router'
+import { NavLink, Outlet, useLocation } from 'react-router'
 import { useAuth } from '../auth/authContext'
 import { useI18n } from '../i18n/i18nContext'
 import { NotificationsProvider } from '../notifications/NotificationsProvider'
-import type { MessageKey } from '../i18n/messages'
 import { roleLabel } from '../lib/roles'
-import type { User } from '../types'
-import { CalendarIcon, ClockIcon, HomeIcon, UserIcon, UsersIcon } from './icons'
+import { MoreIcon } from './icons'
 import { LanguageBar } from './LanguageToggle'
+import { navItems, PHONE_TABS, type NavItem } from './navItems'
 import { NotificationBell } from './NotificationBell'
-
-interface NavItem {
-  to: string
-  label: MessageKey
-  icon: ComponentType<SVGProps<SVGSVGElement>>
-  end?: boolean // "/" must only be active on exactly "/"
-}
-
-/** The screens this user can reach — the same list drives both menus. */
-function navItems(user: User): NavItem[] {
-  const worksShifts = user.memberships.length > 0
-  return [
-    { to: '/', label: 'nav.home', icon: HomeIcon, end: true },
-    { to: '/schedule', label: 'nav.schedule', icon: CalendarIcon },
-    ...(worksShifts ? [{ to: '/my-shifts', label: 'nav.myShifts', icon: ClockIcon } as const] : []),
-    ...(user.isRestaurantManager ? [{ to: '/workers', label: 'nav.workers', icon: UsersIcon } as const] : []),
-    { to: '/profile', label: 'nav.profile', icon: UserIcon },
-  ]
-}
 
 /**
  * Layout for every logged-in page. Phone: content + a bottom tab bar.
@@ -36,8 +15,15 @@ function navItems(user: User): NavItem[] {
 export function AppShell() {
   const { user, logout } = useAuth()
   const { t } = useI18n()
+  const { pathname } = useLocation()
   if (!user) return null
   const items = navItems(user)
+
+  // Phone: at most PHONE_TABS tabs; the rest live behind "More" (/more).
+  const overflow = items.length > PHONE_TABS ? items.slice(PHONE_TABS - 1) : []
+  const more: NavItem = { to: '/more', label: 'nav.more', icon: MoreIcon }
+  const phoneItems = overflow.length ? [...items.slice(0, PHONE_TABS - 1), more] : items
+  const inOverflow = overflow.some((item) => pathname.startsWith(item.to))
 
   return (
     <NotificationsProvider>
@@ -83,14 +69,14 @@ export function AppShell() {
           aria-label={t('nav.main')}
           className="fixed inset-x-0 bottom-0 z-10 flex border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] md:hidden"
         >
-          {items.map((item) => (
+          {phoneItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               end={item.end}
               className={({ isActive }) =>
                 `flex flex-1 flex-col items-center gap-0.5 py-2 text-xs font-medium ${
-                  isActive ? 'text-indigo-600' : 'text-slate-500'
+                  isActive || (item === more && inOverflow) ? 'text-indigo-600' : 'text-slate-500'
                 }`
               }
             >

@@ -39,3 +39,60 @@ export function todayInTimeZone(timeZone: string): string {
     day: "2-digit",
   }).format(new Date());
 }
+
+/** How far `timeZone` is ahead of UTC at `instant`, in ms (e.g. +3h in Israel summer). */
+function timeZoneOffsetMs(instant: Date, timeZone: string): number {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    })
+      .formatToParts(instant)
+      .map((p) => [p.type, p.value])
+  );
+  const wallClockAsUtc = Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour, +parts.minute, +parts.second);
+  return wallClockAsUtc - Math.floor(instant.getTime() / 1000) * 1000;
+}
+
+/**
+ * The real moment of a wall-clock time in a time zone, e.g. ("2026-09-30",
+ * "23:59", "Asia/Jerusalem") → 2026-09-30T20:59Z. Two passes so the offset is
+ * the one in force at that moment (daylight saving changes it).
+ */
+export function zonedTimeToUtc(date: string, time: string, timeZone: string): Date {
+  const [hours, minutes] = time.split(":").map(Number);
+  const wallClock = parseDate(date)!.getTime() + (hours * 60 + minutes) * 60_000;
+  let utc = wallClock - timeZoneOffsetMs(new Date(wallClock), timeZone);
+  utc = wallClock - timeZoneOffsetMs(new Date(utc), timeZone);
+  return new Date(utc);
+}
+
+/**
+ * Availability deadline for the week starting `weekStart`: `day` (0=Sun … 6=Sat)
+ * of the week BEFORE, at `time` in the restaurant time zone. Wednesday 23:59
+ * → weekStart − 4 days at 23:59 Israel time.
+ */
+export function availabilityDeadline(
+  weekStart: Date,
+  settings: { availabilityDeadlineDay: number; availabilityDeadlineTime: string; timeZone: string }
+): Date {
+  const date = toDateString(addDays(weekStart, settings.availabilityDeadlineDay - 7));
+  return zonedTimeToUtc(date, settings.availabilityDeadlineTime, settings.timeZone);
+}
+
+/** The deadline minute still counts ("until 23:59"); locked from the next minute. */
+export function isPastDeadline(deadline: Date, now = new Date()): boolean {
+  return now.getTime() >= deadline.getTime() + 60_000;
+}
+
+/** Sunday on or before a "YYYY-MM-DD" date. */
+export function weekStartOf(date: string): Date {
+  const d = parseDate(date)!;
+  return addDays(d, -((d.getUTCDay() - WEEK_START_DAY + 7) % 7));
+}

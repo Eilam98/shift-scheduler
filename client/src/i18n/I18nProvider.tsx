@@ -26,6 +26,8 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
   const [restaurantDefault, setRestaurantDefault] = useState<Language | null>(null)
   const [guestLanguage, setGuestLanguageState] = useState<Language | null>(readStoredLanguage)
+  const [settingsVersion, setSettingsVersion] = useState(0)
+  const refreshRestaurantLanguage = useCallback(() => setSettingsVersion((v) => v + 1), [])
 
   useEffect(() => {
     let cancelled = false
@@ -37,7 +39,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [settingsVersion])
 
   const language: Language = user
     ? (user.language ?? restaurantDefault ?? guestLanguage ?? 'HE')
@@ -99,8 +101,9 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       errorMessage,
       departmentName,
       setGuestLanguage,
+      refreshRestaurantLanguage,
     }),
-    [language, dir, restaurantDefault, t, errorMessage, departmentName, setGuestLanguage]
+    [language, dir, restaurantDefault, t, errorMessage, departmentName, setGuestLanguage, refreshRestaurantLanguage]
   )
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>

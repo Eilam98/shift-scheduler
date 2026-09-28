@@ -28,6 +28,12 @@ enum Language {
   EN
 }
 
+enum AvailabilityStatus {
+  AVAILABLE
+  PREFER_NOT
+  UNAVAILABLE
+}
+
 enum NotificationType {
   SCHEDULE_POSTED // a week you're scheduled in was posted
   SHIFT_ADDED // you were put on a slot of a posted week
@@ -50,6 +56,7 @@ model User {
   managedDepartments DepartmentManager[]
   slots              ShiftSlot[]
   availability       Availability[]
+  availabilityEdits  Availability[]         @relation("AvailabilityUpdatedBy")
   notifications      Notification[]
 }
 
@@ -175,16 +182,22 @@ model ShiftSlot {
   user       User?      @relation(fields: [userId], references: [id])
 }
 
-// Per-shift-label availability, submitted before Shift rows exist for that week
+// Per-shift-label availability, submitted before Shift rows exist for that
+// week. One submission per person (not per department). updatedById is null
+// when the worker saved it, or the manager who changed it (any time, even
+// after the deadline).
 model Availability {
-  id        String     @id @default(cuid())
-  userId    String
-  date      DateTime
-  label     ShiftLabel
-  available Boolean    @default(true)
-  note      String?
+  id          String             @id @default(cuid())
+  userId      String
+  date        DateTime
+  label       ShiftLabel
+  status      AvailabilityStatus
+  note        String?
+  updatedAt   DateTime           @updatedAt
+  updatedById String?
 
-  user User @relation(fields: [userId], references: [id])
+  user      User  @relation(fields: [userId], references: [id])
+  updatedBy User? @relation("AvailabilityUpdatedBy", fields: [updatedById], references: [id])
 
   @@unique([userId, date, label])
 }

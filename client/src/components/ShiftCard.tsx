@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useI18n } from '../i18n/i18nContext'
 import { api } from '../lib/api'
-import type { Member, Shift, Slot } from '../types'
+import { STATUS_RANK, STATUS_SYMBOL, entryKey } from '../lib/availability'
+import type { AvailabilityStatus, Member, Shift, Slot, TeamAvailability } from '../types'
 import { ErrorMessage } from './ui'
 
 /**
@@ -13,12 +14,15 @@ export function ShiftCard({
   departmentId,
   canEdit,
   members,
+  availability = [],
   onSlotsChange,
 }: {
   shift: Shift
   departmentId: string
   canEdit: boolean
   members: Member[]
+  /** Everyone's availability this week (editors) — shown next to names, it doesn't block. */
+  availability?: TeamAvailability['workers']
   onSlotsChange: (slots: Slot[]) => void
 }) {
   const { t, errorMessage } = useI18n()
@@ -63,6 +67,16 @@ export function ShiftCard({
   const takenIds = new Set(shift.slots.map((s) => s.user?.id).filter(Boolean))
   const filled = shift.slots.filter((s) => s.user).length
 
+  // Each member's answer for THIS shift; "NONE" = didn't submit the week.
+  const answerFor = (userId: string): { status: AvailabilityStatus | 'NONE'; note: string | null } => {
+    const worker = availability.find((w) => w.id === userId)
+    const entry = worker?.submitted ? worker.entries.find((e) => entryKey(e) === entryKey(shift)) : undefined
+    return entry ? { status: entry.status, note: entry.note } : { status: 'NONE', note: null }
+  }
+  const options = members
+    .map((m) => ({ ...m, ...answerFor(m.id) }))
+    .sort((a, b) => STATUS_RANK[a.status] - STATUS_RANK[b.status] || a.name.localeCompare(b.name))
+
   return (
     <div className="rounded-xl border border-slate-200 p-3">
       <div className="flex items-baseline justify-between">
@@ -90,13 +104,14 @@ export function ShiftCard({
                   onChange={(e) => assign(slot.id, e.target.value || null)}
                 >
                   <option value="">{t('shift.empty')}</option>
-                  {members.map((m) => (
+                  {options.map((m) => (
                     <option
                       key={m.id}
                       value={m.id}
                       disabled={takenIds.has(m.id) && slot.user?.id !== m.id}
                     >
-                      {m.name}
+                      {STATUS_SYMBOL[m.status]} {m.name}
+                      {m.note ? ` — ${m.note}` : ''}
                     </option>
                   ))}
                 </select>

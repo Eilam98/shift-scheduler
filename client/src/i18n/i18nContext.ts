@@ -14,6 +14,8 @@ export interface I18nState {
   errorMessage: (err: unknown) => string
   /** Seeded department names are stored in English; show them translated. */
   departmentName: (name: string) => string
+  /** Re-read the restaurant default language (after Settings changes it). */
+  refreshRestaurantLanguage: () => void
   /** Language used while logged out (the login screen toggle). */
   setGuestLanguage: (language: Language) => void
 }
