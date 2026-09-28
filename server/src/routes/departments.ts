@@ -22,15 +22,13 @@ router.get(
   "/:id/members",
   requireDepartmentManager((req) => req.params.id as string),
   async (req, res) => {
-    const memberships = await prisma.userDepartment.findMany({
-      where: { departmentId: req.params.id as string },
+    const memberships = await prisma.departmentMembership.findMany({
+      where: { departmentId: req.params.id as string, user: { isActive: true } },
       include: { user: { select: { id: true, name: true } } },
       orderBy: { user: { name: "asc" } },
     });
 
-    return res.status(200).json({
-      members: memberships.map((m) => ({ ...m.user, isManager: m.isManager })),
-    });
+    return res.status(200).json({ members: memberships.map((m) => m.user) });
   }
 );
 

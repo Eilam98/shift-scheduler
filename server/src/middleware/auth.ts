@@ -5,7 +5,8 @@ import { verifyToken } from "../lib/auth";
 export interface AuthenticatedUser {
   id: string;
   isRestaurantManager: boolean;
-  departments: { departmentId: string; isManager: boolean }[];
+  memberDepartmentIds: string[]; // departments the user works in
+  managedDepartmentId: string | null; // the one department they manage (independent of membership)
 }
 
 // Augment Express's Request type so req.user is typed everywhere it's used.
@@ -38,20 +39,19 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: { departments: true },
+      include: { memberships: true, managedDepartment: true },
     });
 
-    if (!user) {
+    // A deactivated user's existing tokens stop working immediately.
+    if (!user || !user.isActive) {
       return res.status(401).json({ error: "User no longer exists" });
     }
 
     req.user = {
       id: user.id,
       isRestaurantManager: user.isRestaurantManager,
-      departments: user.departments.map((d) => ({
-        departmentId: d.departmentId,
-        isManager: d.isManager,
-      })),
+      memberDepartmentIds: user.memberships.map((m) => m.departmentId),
+      managedDepartmentId: user.managedDepartment?.departmentId ?? null,
     };
 
     next();
@@ -69,10 +69,7 @@ export function requireRestaurantManager(req: Request, res: Response, next: Next
 
 /** True if the user is the restaurant manager or manages this department. */
 export function canManageDepartment(user: AuthenticatedUser, departmentId: string): boolean {
-  return (
-    user.isRestaurantManager ||
-    user.departments.some((d) => d.departmentId === departmentId && d.isManager)
-  );
+  return user.isRestaurantManager || user.managedDepartmentId === departmentId;
 }
 
 /**
@@ -102,7 +99,7 @@ export function requireDepartmentManager(
 /** Restaurant manager, or manager of at least one department. */
 export function requireAnyManager(req: Request, res: Response, next: NextFunction) {
   const user = req.user;
-  if (!user?.isRestaurantManager && !user?.departments.some((d) => d.isManager)) {
+  if (!user?.isRestaurantManager && !user?.managedDepartmentId) {
     return res.status(403).json({ error: "Manager access required" });
   }
   next();

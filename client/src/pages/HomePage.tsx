@@ -31,9 +31,9 @@ export function HomePage() {
   // otherwise the one department they manage.
   const editable: Department[] = user.isRestaurantManager
     ? allDepartments
-    : user.departments
-        .filter((d) => d.isManager)
-        .map((d) => ({ id: d.departmentId, name: d.departmentName }))
+    : user.managedDepartment
+      ? [{ id: user.managedDepartment.departmentId, name: user.managedDepartment.departmentName }]
+      : []
 
   return (
     <Screen>
@@ -46,15 +46,15 @@ export function HomePage() {
       <Card>
         <p className="text-lg text-slate-900">Welcome, {user.name}</p>
         <p className="mt-1 text-sm text-slate-500">{roleLabel(user)}</p>
-        {user.departments.length > 0 && (
-          <ul className="mt-4 space-y-1 text-sm text-slate-700">
-            {user.departments.map((d) => (
-              <li key={d.departmentId}>
-                {d.departmentName}
-                {d.isManager && ' (manager)'}
-              </li>
-            ))}
-          </ul>
+        {user.memberships.length > 0 && (
+          <p className="mt-4 text-sm text-slate-700">
+            Works in: {user.memberships.map((m) => m.departmentName).join(', ')}
+          </p>
+        )}
+        {user.managedDepartment && (
+          <p className="mt-1 text-sm text-slate-700">
+            Manages: {user.managedDepartment.departmentName}
+          </p>
         )}
       </Card>
 

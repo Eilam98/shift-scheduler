@@ -40,10 +40,11 @@ router.patch("/:id", ...canEditSlot, async (req: Request, res: Response) => {
   const slot = res.locals.slot;
 
   if (userId) {
-    const membership = await prisma.userDepartment.findUnique({
+    const membership = await prisma.departmentMembership.findUnique({
       where: { userId_departmentId: { userId, departmentId: slot.departmentId } },
+      include: { user: true },
     });
-    if (!membership) {
+    if (!membership || !membership.user.isActive) {
       return res.status(400).json({ error: "That worker isn't in this department" });
     }
 

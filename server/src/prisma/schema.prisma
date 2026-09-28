@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider  = "postgresql"
   url       = env("DATABASE_URL") // pooled connection, used by the running app
   directUrl = env("DIRECT_URL") // direct connection, used by `prisma migrate`
 }
@@ -18,40 +18,91 @@ enum ScheduleStatus {
   POSTED
 }
 
-model User {
-  id                     String   @id @default(cuid())
-  name                   String
-  email                  String   @unique
-  passwordHash           String
-  isRestaurantManager    Boolean  @default(false)
-  requiresPasswordChange Boolean  @default(true)
-  createdAt              DateTime @default(now())
+enum PayType {
+  FIXED // hourly rate, clocks in at the time clock station
+  TIPS // paid from the shift's tip pool, with an optional guaranteed minimum
+}
 
-  departments  UserDepartment[]
-  slots        ShiftSlot[]
-  availability Availability[]
+enum Language {
+  HE
+  EN
+}
+
+model User {
+  id                     String    @id @default(cuid())
+  name                   String
+  email                  String    @unique
+  passwordHash           String
+  pinHash                String? // time clock station PIN, hashed like passwords
+  language               Language? // null = restaurant default
+  isActive               Boolean   @default(true) // deactivate instead of delete, so history stays
+  isRestaurantManager    Boolean   @default(false)
+  requiresPasswordChange Boolean   @default(true)
+  createdAt              DateTime  @default(now())
+
+  memberships       DepartmentMembership[]
+  managedDepartment DepartmentManager?
+  slots             ShiftSlot[]
+  availability      Availability[]
 }
 
 model Department {
   id   String @id @default(cuid())
-  name String @unique // "Waiters", "Hostesses", "Bar"
+  name String @unique // "Waiters", "Hostesses", "Bar", "Shift Managers"
 
-  members         UserDepartment[]
+  members         DepartmentMembership[]
+  managers        DepartmentManager[]
+  payRates        DepartmentPayRate[]
   slots           ShiftSlot[]
   departmentWeeks DepartmentSchedule[]
 }
 
-// Many-to-many User <-> Department; isManager is scoped to THIS department
-model UserDepartment {
-  id           String  @id @default(cuid())
+// Who WORKS in a department (can be put on its slots).
+model DepartmentMembership {
+  id           String @id @default(cuid())
   userId       String
   departmentId String
-  isManager    Boolean @default(false)
+  hourlyBonus  Int    @default(0) // agorot/hour, always added on top of the department rate
 
   user       User       @relation(fields: [userId], references: [id])
   department Department @relation(fields: [departmentId], references: [id])
 
   @@unique([userId, departmentId])
+}
+
+// Who MANAGES a department — independent of working in it. A user manages at
+// most one department (userId is unique); a department can have several managers.
+model DepartmentManager {
+  id           String @id @default(cuid())
+  userId       String @unique
+  departmentId String
+
+  user       User       @relation(fields: [userId], references: [id])
+  department Department @relation(fields: [departmentId], references: [id])
+}
+
+// Pay rate history: the row with the latest effectiveFrom <= a date applies to
+// that date, so changing a rate never rewrites past months. Money in agorot.
+model DepartmentPayRate {
+  id                String   @id @default(cuid())
+  departmentId      String
+  effectiveFrom     DateTime // UTC midnight of the first day the rate applies
+  payType           PayType
+  hourlyRate        Int? // FIXED: agorot/hour (null = not set yet)
+  minimumHourlyRate Int? // TIPS: guaranteed minimum agorot/hour (null = none)
+
+  department Department @relation(fields: [departmentId], references: [id])
+
+  @@unique([departmentId, effectiveFrom])
+}
+
+// Restaurant-wide settings — always exactly one row (id 1).
+model RestaurantSettings {
+  id                       Int      @id @default(1)
+  availabilityDeadlineDay  Int      @default(3) // 0=Sun … 6=Sat, in the week BEFORE the schedule week
+  availabilityDeadlineTime String   @default("23:59") // "HH:mm" in timeZone
+  defaultLanguage          Language @default(HE)
+  timeZone                 String   @default("Asia/Jerusalem")
 }
 
 // Restaurant-wide default start/end time per shift label, overridable per shift

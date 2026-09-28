@@ -25,15 +25,21 @@ router.post("/", requireAnyManager, async (req, res) => {
     return res.status(400).json({ error: "weekStartDate must be a Sunday in YYYY-MM-DD format" });
   }
 
-  const existing = await prisma.schedule.findUnique({ where: { weekStartDate: weekStart } });
-  if (existing) {
-    return res.status(200).json({ schedule: toScheduleResponse(existing) });
-  }
-
-  const [templates, departments] = await Promise.all([
+  const [existing, templates, departments] = await Promise.all([
+    prisma.schedule.findUnique({ where: { weekStartDate: weekStart } }),
     prisma.shiftTemplate.findMany(),
     prisma.department.findMany({ select: { id: true } }),
   ]);
+
+  if (existing) {
+    // Fill in DepartmentSchedules for departments added after the week was
+    // created (e.g. Shift Managers), so every department can open it.
+    await prisma.departmentSchedule.createMany({
+      data: departments.map((d) => ({ scheduleId: existing.id, departmentId: d.id })),
+      skipDuplicates: true,
+    });
+    return res.status(200).json({ schedule: toScheduleResponse(existing) });
+  }
 
   const shifts = [];
   for (let day = 0; day < 7; day++) {

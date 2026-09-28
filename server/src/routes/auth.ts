@@ -1,30 +1,24 @@
 import { Router } from "express";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { comparePassword, hashPassword, isValidPassword, signToken } from "../lib/auth";
+import { departmentRolesInclude, toDepartmentRoles } from "../lib/users";
 import { authenticate } from "../middleware/auth";
 
 const router = Router();
 
-function toUserResponse(user: {
-  id: string;
-  name: string;
-  email: string;
-  isRestaurantManager: boolean;
-  requiresPasswordChange: boolean;
-  departments: { departmentId: string; isManager: boolean; department: { name: string } }[];
-}) {
+function toUserResponse(
+  user: Prisma.UserGetPayload<{ include: typeof departmentRolesInclude }>
+) {
   return {
     id: user.id,
     name: user.name,
     email: user.email,
     isRestaurantManager: user.isRestaurantManager,
     requiresPasswordChange: user.requiresPasswordChange,
-    departments: user.departments.map((d) => ({
-      departmentId: d.departmentId,
-      departmentName: d.department.name,
-      isManager: d.isManager,
-    })),
+    language: user.language, // null = restaurant default
+    ...toDepartmentRoles(user),
   };
 }
 
@@ -43,7 +37,7 @@ router.post("/login", async (req, res) => {
 
   const user = await prisma.user.findUnique({
     where: { email },
-    include: { departments: { include: { department: true } } },
+    include: departmentRolesInclude,
   });
 
   if (!user) {
@@ -55,6 +49,11 @@ router.post("/login", async (req, res) => {
     return res.status(401).json({ error: "Invalid email or password" });
   }
 
+  // Checked after the password, so it doesn't reveal which emails exist.
+  if (!user.isActive) {
+    return res.status(403).json({ error: "This account has been deactivated" });
+  }
+
   const token = signToken({ userId: user.id });
   return res.status(200).json({ token, user: toUserResponse(user) });
 });
@@ -63,7 +62,7 @@ router.post("/login", async (req, res) => {
 router.get("/me", authenticate, async (req, res) => {
   const user = await prisma.user.findUnique({
     where: { id: req.user!.id },
-    include: { departments: { include: { department: true } } },
+    include: departmentRolesInclude,
   });
 
   if (!user) {

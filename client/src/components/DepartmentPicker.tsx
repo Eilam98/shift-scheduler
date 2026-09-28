@@ -1,10 +1,9 @@
-import type { Department, DepartmentAssignment } from '../types'
+import type { Department, DepartmentRolesInput } from '../types'
 
 /**
- * Choose which departments a user belongs to and which one (at most) they
- * manage. Making someone manager of a department also makes them a member,
- * and clears their manager role elsewhere — mirroring the server rule in
- * validateDepartmentAssignments (server/src/routes/users.ts).
+ * Choose which departments a user works in, and separately which one (at
+ * most) they manage. The two are independent: a manager doesn't have to work
+ * in the department they manage (PROJECT_SPEC.md "Roles").
  */
 export function DepartmentPicker({
   departments,
@@ -12,60 +11,56 @@ export function DepartmentPicker({
   onChange,
 }: {
   departments: Department[]
-  value: DepartmentAssignment[]
-  onChange: (value: DepartmentAssignment[]) => void
+  value: DepartmentRolesInput
+  onChange: (value: DepartmentRolesInput) => void
 }) {
   function toggleMember(departmentId: string, member: boolean) {
-    onChange(
-      member
-        ? [...value, { departmentId, isManager: false }]
-        : value.filter((a) => a.departmentId !== departmentId)
-    )
-  }
-
-  function toggleManager(departmentId: string, manager: boolean) {
-    onChange(
-      value.map((a) => ({
-        ...a,
-        isManager: a.departmentId === departmentId ? manager : manager ? false : a.isManager,
-      }))
-    )
+    onChange({
+      ...value,
+      memberDepartmentIds: member
+        ? [...value.memberDepartmentIds, departmentId]
+        : value.memberDepartmentIds.filter((id) => id !== departmentId),
+    })
   }
 
   return (
-    <fieldset className="space-y-2">
-      <legend className="text-sm font-medium text-slate-700">Departments</legend>
-      {departments.map((dept) => {
-        const assignment = value.find((a) => a.departmentId === dept.id)
-        return (
-          <div
+    <div className="space-y-4">
+      <fieldset className="space-y-2">
+        <legend className="text-sm font-medium text-slate-700">Works in</legend>
+        {departments.map((dept) => (
+          <label
             key={dept.id}
-            className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2.5"
+            className="flex items-center gap-3 rounded-lg border border-slate-200 px-3 py-2.5 text-base text-slate-900"
           >
-            <label className="flex items-center gap-3 text-base text-slate-900">
-              <input
-                type="checkbox"
-                className="size-5 accent-indigo-600"
-                checked={!!assignment}
-                onChange={(e) => toggleMember(dept.id, e.target.checked)}
-              />
+            <input
+              type="checkbox"
+              className="size-5 accent-indigo-600"
+              checked={value.memberDepartmentIds.includes(dept.id)}
+              onChange={(e) => toggleMember(dept.id, e.target.checked)}
+            />
+            {dept.name}
+          </label>
+        ))}
+      </fieldset>
+
+      <label className="block">
+        <span className="text-sm font-medium text-slate-700">Manages</span>
+        <select
+          className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-base text-slate-900"
+          value={value.managedDepartmentId ?? ''}
+          onChange={(e) => onChange({ ...value, managedDepartmentId: e.target.value || null })}
+        >
+          <option value="">No department</option>
+          {departments.map((dept) => (
+            <option key={dept.id} value={dept.id}>
               {dept.name}
-            </label>
-            {assignment && (
-              <label className="flex items-center gap-2 text-sm text-slate-600">
-                <input
-                  type="checkbox"
-                  className="size-4 accent-indigo-600"
-                  checked={assignment.isManager}
-                  onChange={(e) => toggleManager(dept.id, e.target.checked)}
-                />
-                Manager
-              </label>
-            )}
-          </div>
-        )
-      })}
-      <p className="text-xs text-slate-500">A person can manage at most one department.</p>
-    </fieldset>
+            </option>
+          ))}
+        </select>
+        <span className="mt-1 block text-xs text-slate-500">
+          A person can manage at most one department, whether or not they work in it.
+        </span>
+      </label>
+    </div>
   )
 }

@@ -1,23 +1,47 @@
 import "dotenv/config";
-import { PrismaClient } from "@prisma/client";
+import { PayType, PrismaClient } from "@prisma/client";
 import { hashPassword, isValidPassword } from "../lib/auth";
 
 const prisma = new PrismaClient();
 
-// Bootstraps the three departments, the default shift-time templates,
-// and the FIRST restaurant manager account. There is no API route for
-// creating a restaurant manager (see PROJECT_SPEC.md) — this seed script
-// is the only way one ever gets created.
-async function main() {
-  const departmentNames = ["Waiters", "Hostesses", "Bar"];
+// Each department's pay type (PROJECT_SPEC.md "Departments & pay"). Amounts
+// are left unset — the restaurant manager enters them on the Departments & pay page.
+const departments: { name: string; payType: PayType }[] = [
+  { name: "Waiters", payType: "TIPS" },
+  { name: "Hostesses", payType: "FIXED" },
+  { name: "Bar", payType: "TIPS" },
+  { name: "Shift Managers", payType: "FIXED" },
+];
 
-  for (const name of departmentNames) {
-    await prisma.department.upsert({
+// First pay rate row for every department, so a rate exists for any date we'll need.
+const INITIAL_RATE_DATE = new Date(Date.UTC(2026, 0, 1));
+
+// Bootstraps the departments with their initial pay type, the default
+// shift-time templates, the restaurant settings row, and the FIRST restaurant
+// manager account. There is no API route for creating a restaurant manager
+// (see PROJECT_SPEC.md) — this seed script is the only way one ever gets created.
+// Idempotent: existing rows are left as they are.
+async function main() {
+  for (const { name, payType } of departments) {
+    const department = await prisma.department.upsert({
       where: { name },
       update: {},
       create: { name },
     });
+
+    await prisma.departmentPayRate.upsert({
+      where: {
+        departmentId_effectiveFrom: {
+          departmentId: department.id,
+          effectiveFrom: INITIAL_RATE_DATE,
+        },
+      },
+      update: {},
+      create: { departmentId: department.id, effectiveFrom: INITIAL_RATE_DATE, payType },
+    });
   }
+
+  await prisma.restaurantSettings.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } });
 
   await prisma.shiftTemplate.upsert({
     where: { label: "MORNING" },

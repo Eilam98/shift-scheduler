@@ -21,7 +21,7 @@ One restaurant · responsive **desktop + phone** (PWA) · **Hebrew default (RTL)
   - `src/lib/api.ts` — `api<T>(path, {method, body})` fetch wrapper: adds the Bearer token, throws `ApiError` with the server's message. Use it for every API call.
   - `src/auth/` — `AuthProvider` (user state, login/logout/changePassword, restores session via `/me` on load) + `useAuth()` hook
   - `src/pages/` — one component per screen; `src/components/ui.tsx` — shared `Screen`, `Card`, `TextField`, `Button` (`variant="secondary"`), `ErrorMessage`
-  - `src/components/DepartmentPicker.tsx` — member/manager picker per department (enforces ≤1 managed department in the UI); `AddWorkerForm.tsx`
+  - `src/components/DepartmentPicker.tsx` — "Works in" checkboxes + separate "Manages" select (≤1 department); `AddWorkerForm.tsx`
   - `src/pages/SchedulePage.tsx` + `src/components/ShiftCard.tsx` — week navigation, create week, add/remove slots, assign workers (read-only when `canEdit` is false)
   - `src/lib/dates.ts` — "YYYY-MM-DD" date helpers (`currentWeekStart`, `addDays`, `formatDay`…) — never use `Date` objects for calendar dates
   - `src/lib/password.ts` — `PASSWORD_RULE`/`PASSWORD_HINT` (mirror the server rule) + `generateTemporaryPassword()`; `src/lib/roles.ts` — `roleLabel(user)`
@@ -29,10 +29,10 @@ One restaurant · responsive **desktop + phone** (PWA) · **Hebrew default (RTL)
   - JWT stored in `localStorage` under `shift-organizer.token`
 - `/server` — Express API
   - `src/prisma/schema.prisma` — data model; `src/prisma/migrations/` — generated SQL migrations (committed, never edit by hand)
-  - `src/prisma/seed.ts` — creates departments, shift templates, and the only restaurant manager (details from `.env`)
-  - `src/lib/` — shared helpers (`prisma.ts` client, `auth.ts` JWT/bcrypt/password rule, `dates.ts` week/date parsing)
+  - `src/prisma/seed.ts` — creates departments (+ initial `DepartmentPayRate` with pay type), shift templates, the `RestaurantSettings` row, and the only restaurant manager (details from `.env`)
+  - `src/lib/` — shared helpers (`prisma.ts` client, `auth.ts` JWT/bcrypt/password rule, `dates.ts` week/date parsing, `users.ts` `departmentRolesInclude` + `toDepartmentRoles` for user responses)
   - `src/middleware/auth.ts` — `authenticate`, `requireRestaurantManager`, `requireDepartmentManager(getDepartmentId(req, res))` (use `res.locals` when the department comes from a DB row loaded by earlier middleware, see `routes/slots.ts`), `requireAnyManager`, `canManageDepartment`
-  - `src/routes/` — one router per resource: `auth.ts`, `users.ts` (restaurant manager only), `departments.ts` (`GET /api/departments` any logged-in user; `GET /:id/members` dept manager), `schedules.ts` (`POST /` create week, `GET /:weekStart/departments/:departmentId`), `shifts.ts` (`POST /:shiftId/slots`), `slots.ts` (`PATCH`/`DELETE /:id`)
+  - `src/routes/` — one router per resource: `auth.ts`, `users.ts` (restaurant manager only; body `{ memberDepartmentIds, managedDepartmentId }`), `departments.ts` (`GET /api/departments` any logged-in user; `GET /:id/members` dept manager), `schedules.ts` (`POST /` create week — also adds missing DepartmentSchedules to an existing week, `GET /:weekStart/departments/:departmentId`), `shifts.ts` (`POST /:shiftId/slots`), `slots.ts` (`PATCH`/`DELETE /:id`)
 
 ## Environment (`server/.env`, gitignored — template in `server/.env.example`)
 - `DATABASE_URL` — Neon **pooled** connection string (host contains `-pooler`), used by the running app
@@ -45,7 +45,8 @@ One restaurant · responsive **desktop + phone** (PWA) · **Hebrew default (RTL)
 Full rules in PROJECT_SPEC.md. Key ones:
 - Roles: Restaurant Manager (one; has every department manager's permissions; manages the Shift Managers department), Department Manager (manages at most one department — **independent of working in it**; a department can have several managers), Worker, Shift manager (member of Shift Managers; any shift manager fills in end-of-shift reports)
 - Only the Restaurant Manager can create workers, assign departments/manager roles, set pay and settings
-- CURRENT CODE: membership and management both live in `UserDepartment` (`isManager`) and `req.user.departments[].isManager`. Build step 2 splits them into `DepartmentMembership` + `DepartmentManager`
+- Membership (`DepartmentMembership`, holds `hourlyBonus`) and management (`DepartmentManager`, `userId` unique) are separate tables. Editing a user's departments keeps existing membership rows so bonuses survive
+- Deactivated users (`isActive: false`) can't log in, their tokens are rejected, and they're hidden from slot pickers
 - Money is integer agorot (70 NIS = 7000), never floats. Pay rates keep history (`effectiveFrom`)
 - Clock-dependent rules (availability deadline, clock-in) use the restaurant time zone `Asia/Jerusalem`, not the server's
 - A Department Manager can only create/edit/delete ShiftSlots and Shifts for their own department
@@ -59,8 +60,10 @@ Full rules in PROJECT_SPEC.md. Key ones:
 ## Conventions
 - All API routes under `/api`, RESTful, prefixed by resource (`/api/shifts`, `/api/availability`)
 - Validate request bodies with zod before hitting the DB
-- Auth middleware attaches `req.user` with `{ id, isRestaurantManager, departments: [{departmentId, isManager}] }`
+- Auth middleware attaches `req.user` with `{ id, isRestaurantManager, memberDepartmentIds: string[], managedDepartmentId: string | null }`
 - Schema changes: edit `schema.prisma`, then `npx prisma migrate dev --name <what_changed>`, and commit the new migration folder together with the schema change
+- Data-moving migrations: create the SQL first (`migrate dev --create-only`), add the data-copy SQL by hand, wrap it in `BEGIN;`/`COMMIT;`, then apply. Never edit a migration after it's applied
+- **Never pass `DATABASE_URL`/`DIRECT_URL` as `--shadow-database-url`** (e.g. to `prisma migrate diff`): the shadow DB gets reset — this wiped the real DB once (restored via Neon). In a non-interactive shell, generate SQL with `migrate diff` against a throwaway Neon branch and apply with `migrate deploy`
 - Commit messages: short imperative present tense ("Add shift slot endpoint", not "Added")
 
 ## Platforms & language
@@ -78,9 +81,10 @@ Full rules in PROJECT_SPEC.md. Key ones:
 - [x] Worker management (`/workers`, restaurant manager): list users, add worker with generated temporary password + departments, edit department assignments
 - [ ] Not built yet: delete/deactivate worker, edit name/email, reset a worker's password (no API yet)
 - [x] Schedules part 1 — editor: create week, add/remove slots, assign workers (dept manager / restaurant manager)
-- [ ] **Next: build step 2 — data model v2** (PROJECT_SPEC.md "Build order"), then: app shell (i18n/RTL + responsive nav) → posting + team schedule + my shifts → availability + settings → time clock station + attendance → end-of-shift report → pay & payroll → PWA + deployment
+- [x] Build step 2 — data model v2: migration `data_model_v2` (membership/manager split with data copy, `DepartmentPayRate`, `RestaurantSettings`, `User.pinHash/language/isActive`), Shift Managers department, new auth `user` shape, Workers page "Works in" / "Manages"
+- [ ] **Next: build step 3 — app shell** (PROJECT_SPEC.md "Build order"), then: posting + team schedule + my shifts → availability + settings → time clock station + attendance → end-of-shift report → pay & payroll → PWA + deployment
 - [ ] Later: edit a single shift's times (shared across departments — decide who may)
-- Testing tip: create temporary test users with `@example.test` emails and delete them afterwards (UserDepartment rows first) — never test with the real manager account
+- Testing tip: create temporary test users with `@example.test` emails and delete them afterwards (DepartmentMembership/DepartmentManager rows first) — never test with the real manager account
 
 ## Commands
 - `cd server && npm run dev` — start API

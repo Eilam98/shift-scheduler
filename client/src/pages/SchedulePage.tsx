@@ -28,8 +28,7 @@ export function SchedulePage() {
 
   const canManage =
     !!user &&
-    (user.isRestaurantManager ||
-      user.departments.some((d) => d.departmentId === departmentId && d.isManager))
+    (user.isRestaurantManager || user.managedDepartment?.departmentId === departmentId)
 
   useEffect(() => {
     let cancelled = false

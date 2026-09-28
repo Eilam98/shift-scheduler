@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { api } from '../lib/api'
 import { PASSWORD_HINT, PASSWORD_RULE, generateTemporaryPassword } from '../lib/password'
-import type { Department, DepartmentAssignment, UserListItem } from '../types'
+import type { Department, DepartmentRolesInput, UserListItem } from '../types'
 import { DepartmentPicker } from './DepartmentPicker'
 import { Button, ErrorMessage, TextField } from './ui'
 
@@ -17,7 +17,10 @@ export function AddWorkerForm({
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [temporaryPassword, setTemporaryPassword] = useState(generateTemporaryPassword)
-  const [assignments, setAssignments] = useState<DepartmentAssignment[]>([])
+  const [roles, setRoles] = useState<DepartmentRolesInput>({
+    memberDepartmentIds: [],
+    managedDepartmentId: null,
+  })
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -30,7 +33,7 @@ export function AddWorkerForm({
     try {
       const user = await api<UserListItem>('/users', {
         method: 'POST',
-        body: { name, email, temporaryPassword, departments: assignments },
+        body: { name, email, temporaryPassword, ...roles },
       })
       onCreated(user, temporaryPassword)
     } catch (err) {
@@ -78,7 +81,7 @@ export function AddWorkerForm({
           New
         </Button>
       </div>
-      <DepartmentPicker departments={departments} value={assignments} onChange={setAssignments} />
+      <DepartmentPicker departments={departments} value={roles} onChange={setRoles} />
       {error && <ErrorMessage>{error}</ErrorMessage>}
       <div className="flex gap-2">
         <Button type="button" variant="secondary" onClick={onCancel}>

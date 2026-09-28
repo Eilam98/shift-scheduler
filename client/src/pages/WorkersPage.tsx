@@ -5,7 +5,7 @@ import { DepartmentPicker } from '../components/DepartmentPicker'
 import { Button, Card, ErrorMessage, Screen } from '../components/ui'
 import { api } from '../lib/api'
 import { roleLabel } from '../lib/roles'
-import type { Department, DepartmentAssignment, UserListItem } from '../types'
+import type { Department, DepartmentRolesInput, UserListItem } from '../types'
 
 type Created = { name: string; email: string; temporaryPassword: string }
 
@@ -143,6 +143,7 @@ function WorkerCard({ user, onEdit }: { user: UserListItem; onEdit?: () => void 
           <p className="truncate text-sm text-slate-500">{user.email}</p>
           <p className="mt-1 text-xs font-medium tracking-wide text-indigo-700 uppercase">
             {roleLabel(user)}
+            {!user.isActive && <span className="ms-2 text-slate-500">· Inactive</span>}
           </p>
         </div>
         {onEdit && (
@@ -151,19 +152,21 @@ function WorkerCard({ user, onEdit }: { user: UserListItem; onEdit?: () => void 
           </button>
         )}
       </div>
-      {user.departments.length > 0 && (
+      {(user.memberships.length > 0 || user.managedDepartment) && (
         <div className="mt-3 flex flex-wrap gap-2">
-          {user.departments.map((d) => (
+          {user.memberships.map((m) => (
             <span
-              key={d.departmentId}
-              className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                d.isManager ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-100 text-slate-700'
-              }`}
+              key={m.departmentId}
+              className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700"
             >
-              {d.departmentName}
-              {d.isManager && ' · manager'}
+              {m.departmentName}
             </span>
           ))}
+          {user.managedDepartment && (
+            <span className="rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-medium text-indigo-800">
+              Manages {user.managedDepartment.departmentName}
+            </span>
+          )}
         </div>
       )}
     </Card>
@@ -181,9 +184,10 @@ function EditDepartmentsCard({
   onSaved: (user: UserListItem) => void
   onCancel: () => void
 }) {
-  const [assignments, setAssignments] = useState<DepartmentAssignment[]>(() =>
-    user.departments.map(({ departmentId, isManager }) => ({ departmentId, isManager }))
-  )
+  const [roles, setRoles] = useState<DepartmentRolesInput>(() => ({
+    memberDepartmentIds: user.memberships.map((m) => m.departmentId),
+    managedDepartmentId: user.managedDepartment?.departmentId ?? null,
+  }))
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -193,7 +197,7 @@ function EditDepartmentsCard({
     try {
       const updated = await api<UserListItem>(`/users/${user.id}/departments`, {
         method: 'PATCH',
-        body: { departments: assignments },
+        body: roles,
       })
       onSaved(updated)
     } catch (err) {
@@ -206,7 +210,7 @@ function EditDepartmentsCard({
   return (
     <Card>
       <p className="mb-3 font-semibold text-slate-900">{user.name}</p>
-      <DepartmentPicker departments={departments} value={assignments} onChange={setAssignments} />
+      <DepartmentPicker departments={departments} value={roles} onChange={setRoles} />
       {error && (
         <div className="mt-3">
           <ErrorMessage>{error}</ErrorMessage>

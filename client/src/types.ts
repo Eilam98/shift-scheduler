@@ -3,19 +3,31 @@ export interface Department {
   name: string
 }
 
-// What a user is assigned to: sent to POST /users and PATCH /users/:id/departments.
-export interface DepartmentAssignment {
+// Where a user works and what they manage (independent of each other):
+// sent to POST /users and PATCH /users/:id/departments.
+export interface DepartmentRolesInput {
+  memberDepartmentIds: string[]
+  managedDepartmentId: string | null
+}
+
+export interface DepartmentRef {
   departmentId: string
-  isManager: boolean
+  departmentName: string
+}
+
+// Mirrors toDepartmentRoles in server/src/lib/users.ts.
+export interface DepartmentRoles {
+  memberships: DepartmentRef[]
+  managedDepartment: DepartmentRef | null
 }
 
 // Mirrors toUserListItem in server/src/routes/users.ts (GET/POST /api/users).
-export interface UserListItem {
+export interface UserListItem extends DepartmentRoles {
   id: string
   name: string
   email: string
   isRestaurantManager: boolean
-  departments: (DepartmentAssignment & { departmentName: string })[]
+  isActive: boolean
 }
 
 export type ShiftLabel = 'MORNING' | 'EVENING'
@@ -50,20 +62,17 @@ export interface DepartmentWeek {
 export interface Member {
   id: string
   name: string
-  isManager: boolean
 }
 
 // Mirrors the `user` object returned by /api/auth/login and /api/auth/me
 // (see toUserResponse in server/src/routes/auth.ts).
-export interface User {
+export interface User extends DepartmentRoles {
   id: string
   name: string
   email: string
   isRestaurantManager: boolean
   requiresPasswordChange: boolean
-  departments: {
-    departmentId: string
-    departmentName: string
-    isManager: boolean
-  }[]
+  language: Language | null // null = restaurant default
 }
+
+export type Language = 'HE' | 'EN'

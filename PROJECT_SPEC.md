@@ -52,29 +52,29 @@ Status: ✅ built · 🔜 planned. Built tables keep their current shape until t
 ```prisma
 enum ShiftLabel      { MORNING EVENING }
 enum ScheduleStatus  { DRAFT POSTED }
-enum PayType         { FIXED TIPS }            // 🔜
+enum PayType         { FIXED TIPS }            // ✅
 enum TimeEntrySource { STATION MANUAL }        // 🔜
-enum Language        { HE EN }                 // 🔜
+enum Language        { HE EN }                 // ✅
 
-model User {                                    // ✅ (+ 🔜 fields)
+model User {                                    // ✅
   id                     String   @id @default(cuid())
   name                   String
   email                  String   @unique
   passwordHash           String
-  pinHash                String?               // 🔜 station PIN (hashed like passwords)
-  language               Language?             // 🔜 null = restaurant default
-  isActive               Boolean  @default(true) // 🔜 deactivate instead of delete
+  pinHash                String?               // station PIN (hashed like passwords) — UI in step 6
+  language               Language?             // null = restaurant default
+  isActive               Boolean  @default(true) // deactivate instead of delete (blocks login + token); UI 🔜
   isRestaurantManager    Boolean  @default(false)
   requiresPasswordChange Boolean  @default(true)
   createdAt              DateTime @default(now())
 }
 
-model Department {                              // ✅ (+ "Shift Managers" row 🔜)
+model Department {                              // ✅ (incl. "Shift Managers")
   id   String @id @default(cuid())
   name String @unique
 }
 
-// 🔜 replaces UserDepartment's membership half. Who WORKS in a department.
+// ✅ Who WORKS in a department (replaced UserDepartment).
 model DepartmentMembership {
   id           String @id @default(cuid())
   userId       String
@@ -83,14 +83,14 @@ model DepartmentMembership {
   @@unique([userId, departmentId])
 }
 
-// 🔜 replaces UserDepartment.isManager. Who MANAGES a department (independent of membership).
+// ✅ Who MANAGES a department (independent of membership).
 model DepartmentManager {
   id           String @id @default(cuid())
   userId       String @unique                   // manages at most one department
   departmentId String                           // a department may have several managers
 }
 
-// 🔜 rate history per department
+// ✅ rate history per department (seeded with each department's pay type, amounts unset until step 8)
 model DepartmentPayRate {
   id                String   @id @default(cuid())
   departmentId      String
@@ -108,7 +108,7 @@ model Shift { id, scheduleId, date, label, startTime, endTime; @@unique([schedul
 model ShiftSlot { id, shiftId, departmentId, userId? }                                // ✅
 model Availability { id, userId, date, label, available, note?; @@unique([userId, date, label]) } // ✅ table, 🔜 UI
 
-// 🔜 one row
+// ✅ one row (seeded)
 model RestaurantSettings {
   id                       Int      @id @default(1)
   availabilityDeadlineDay  Int      @default(3)       // 0=Sun … 3=Wed
@@ -145,7 +145,7 @@ model TipPool {
 model ShiftSwapRequest { id, requesterId, slotId, targetUserId?, status, createdAt }
 ```
 
-**Migration note:** `UserDepartment` (built) holds both membership and `isManager`. The step-1 migration splits it into `DepartmentMembership` + `DepartmentManager`, copying existing rows (members stay members; `isManager` rows become manager rows).
+**Migration note:** ✅ done in migration `data_model_v2` — `UserDepartment` was split into `DepartmentMembership` + `DepartmentManager`, copying existing rows (members stayed members; `isManager` rows became manager rows).
 
 ## Pages
 Every page works on **phone** (single column, bottom tab bar) and **desktop** (side menu, wider layouts — e.g. the week as a 7-day grid). Hebrew/RTL by default.
@@ -187,7 +187,7 @@ Every page works on **phone** (single column, bottom tab bar) and **desktop** (s
 
 ## Build order
 1. ✅ Scaffolding, database, seed, auth, worker management, schedule editor.
-2. **Data model v2:** `DepartmentMembership` + `DepartmentManager` (migrate existing data), Shift Managers department, `DepartmentPayRate`, `RestaurantSettings`, `User.isActive/language/pinHash`. Update auth `user` shape, middleware and the Workers page.
+2. ✅ **Data model v2:** `DepartmentMembership` + `DepartmentManager` (migrate existing data), Shift Managers department, `DepartmentPayRate`, `RestaurantSettings`, `User.isActive/language/pinHash`. Update auth `user` shape, middleware and the Workers page.
 3. **App shell:** i18n (HE default + EN, RTL), responsive navigation (bottom tabs on phone, side menu on desktop). Convert existing pages.
 4. **Posting + Team schedule + My shifts.**
 5. **Availability** with deadline (+ Restaurant settings page).
@@ -212,7 +212,8 @@ Every page works on **phone** (single column, bottom tab bar) and **desktop** (s
 - **POST /api/auth/login** `{ email, password }` → 200 `{ token, user }` · 401 `{ error: "Invalid email or password" }`
 - **GET /api/auth/me** → `{ user }`
 - **PATCH /api/auth/password** `{ currentPassword, newPassword }` → `{ success: true }`, clears `requiresPasswordChange`
-- `user` shape (current): `{ id, name, email, isRestaurantManager, requiresPasswordChange, departments: [{ departmentId, departmentName, isManager }] }` — changes in build step 2 to separate memberships and managed department.
+- `user` shape: `{ id, name, email, isRestaurantManager, requiresPasswordChange, language, memberships: [{ departmentId, departmentName }], managedDepartment: { departmentId, departmentName } | null }`.
+- Login of a deactivated user (`isActive: false`) → 403 (checked after the password); their existing tokens get 401.
 - User management, departments, schedules, shifts and slots routes: see CLAUDE.md "Folder structure".
 
 ## Known simplifications (worth mentioning as "what I'd improve" in an interview)
