@@ -1,194 +1,221 @@
-# Shift Scheduler — Full Project Spec
+# Shift Organizer — Full Project Spec
 
-This file consolidates every planning decision made before development started. Claude Code should read this alongside CLAUDE.md — CLAUDE.md has the condensed conventions, this file has the full data model and API contract to build against.
+Source of truth for what the app should be. CLAUDE.md has the condensed conventions and current progress; this file has the product rules, the target data model, every page, and the build order. When a decision changes, update this file first.
+
+## Product
+A shift-scheduling, time-tracking and pay app for **one restaurant**. It runs as a responsive web app on **desktop and phone** (installable on iPhone as a PWA). **Hebrew is the default language (right-to-left)**; English can be chosen per user, and the restaurant default is set in settings.
 
 ## Roles
-- **Restaurant Manager** — global, only one per restaurant. Can create workers, assign their departments, edit any schedule.
-- **Department Manager** — a worker "extended" to manage exactly one department (e.g. floor manager -> Waiters, host manager -> Hostesses, bar manager -> Bar). Can create/edit/delete shifts and slots only for their own department, and posts their department's schedule.
-- **Worker** — belongs to one or more departments. Submits availability. Can view any department's *posted* schedule, but not drafts.
+- **Restaurant Manager** — exactly one. Has every department manager's permissions for every department, creates workers, sets pay and settings. Also acts as the manager of the **Shift Managers** department (posts its weekly schedule).
+- **Department Manager** — manages **at most one** department. Managing a department is **independent of working in it** (e.g. a shift manager can manage the Bar without being a bartender). Can create/edit the department's schedule, post it, and swap people between shifts. A department can have several managers.
+- **Worker** — works in one or more departments. Submits availability, sees posted schedules, sees their own hours and earnings.
+- **Shift manager** — a member of the Shift Managers department. Any shift manager can fill in the end-of-shift report (hours of tip workers + the shift's tip pool).
 
-## Departments
-Waiters, Hostesses, Bartenders. A worker can belong to more than one department. `isManager` is scoped per department (a `UserDepartment` join row), not global to the user.
+## Departments & pay
+Departments: **Waiters, Hostesses, Bar, Shift Managers**.
 
-## Scheduling model
-- A `Schedule` is a container for one calendar week (`weekStartDate`).
-- A `Shift` is one date + label (`MORNING` / `EVENING`), **shared across all departments** — it is not department-specific by itself.
-- Each shift has literal `ShiftSlot` rows per department: a slot is either empty (`userId: null`) or filled by one worker. There is no numeric "requiredCount" — a manager adds or removes slot rows manually per shift as needed (no stored defaults).
-- `ShiftTemplate` holds a restaurant-wide default start/end time per label (e.g. Morning defaults to 08:00–16:00), which a manager can override per individual shift.
-- Posting is **per department per week**, via `DepartmentSchedule.status` (`DRAFT` / `POSTED`). One department can post while another is still in draft, even though they share the same underlying `Shift` rows.
-- `Availability` is submitted per (date, label) pair, independent of any `Shift` row — workers submit availability before shifts/schedules for that week exist.
+Each department has a pay rate, with history (`effectiveFrom`) so past months stay correct:
+- **FIXED** — hourly rate (e.g. Hostesses, Shift Managers).
+- **TIPS** — paid from tips, with an optional **guaranteed minimum per hour** ("completion", e.g. 70 NIS/hour) (e.g. Waiters, Bar).
 
-## Prisma schema
+Rules:
+- Everyone in a department earns the department rate; a specific worker can get an extra **hourly bonus** in a specific department. The bonus × hours is **always added on top** (also on top of tips and top-up).
+- **Tip pool:** one pool **per shift, shared by all tip-based workers** in that shift (waiters + bartenders together), split by hours worked.
+- **Top-up is checked per month, per worker, per department:** if (tip shares for that department's hours) < (hours × department minimum), the restaurant pays the difference. Example: 100 h as a waiter, 6,000 NIS tips, minimum 70 → 7,000 − 6,000 = **1,000 NIS top-up**.
+- Money is stored as **integer agorot** (70 NIS = `7000`) — never floats.
+
+## Time tracking
+- **FIXED-pay departments** clock in/out on a **restaurant device only** (the "time clock station"), identified by a personal **PIN**. Workers' own phones cannot clock in.
+- **TIPS departments** don't clock in: at the end of each shift a shift manager enters each tip worker's hours in the **end-of-shift report**, plus the shift's total tips.
+- Clocking in without being scheduled is **allowed but flagged** for the department manager to review on the Attendance page. Managers can correct entries (e.g. missed clock-out).
+
+## Scheduling
+- A `Schedule` is one week, **Sunday–Saturday**. Every day has exactly two shifts: **MORNING** and **EVENING** (default times from `ShiftTemplate`, overridable per shift).
+- A `Shift` is shared by all departments; each department staffs it with its own `ShiftSlot` rows (empty or filled by one worker). No stored "required count" — managers add/remove slots.
+- A slot can only be filled by a **member** of its department; a person can hold **one slot per shift** across all departments.
+- Posting is **per department per week** (`DepartmentSchedule.status` DRAFT/POSTED). Workers see a department's week (the whole team, all names) **only once it is posted**.
+- Only department managers (and the restaurant manager) change a schedule, including swaps. Later: a **Request box** where workers ask for a swap and managers approve.
+
+## Availability
+- Submitted per (date, MORNING/EVENING), independent of `Shift` rows.
+- **Deadline:** Wednesday 23:59 (Israel time) before the week starts *(assumption: for the week starting Sunday S, the deadline is Wednesday S−4 at 23:59)*. After the deadline the worker can't submit or change it. The restaurant manager can change the deadline day/time in settings.
+- Managers see availability next to names while building the schedule.
+
+## Settings & language
+- `RestaurantSettings` (one row): availability deadline day + time, default language (HE), time zone (`Asia/Jerusalem`), default shift times.
+- `User.language` optional override of the default.
+- All UI text goes through translations (HE + EN); layouts use logical CSS (start/end, not left/right) so RTL works.
+
+## Target data model (Prisma)
+Status: ✅ built · 🔜 planned. Built tables keep their current shape until the migration that changes them.
 
 ```prisma
-enum ShiftLabel {
-  MORNING
-  EVENING
-}
+enum ShiftLabel      { MORNING EVENING }
+enum ScheduleStatus  { DRAFT POSTED }
+enum PayType         { FIXED TIPS }            // 🔜
+enum TimeEntrySource { STATION MANUAL }        // 🔜
+enum Language        { HE EN }                 // 🔜
 
-enum ScheduleStatus {
-  DRAFT
-  POSTED
-}
-
-model User {
+model User {                                    // ✅ (+ 🔜 fields)
   id                     String   @id @default(cuid())
   name                   String
   email                  String   @unique
   passwordHash           String
+  pinHash                String?               // 🔜 station PIN (hashed like passwords)
+  language               Language?             // 🔜 null = restaurant default
+  isActive               Boolean  @default(true) // 🔜 deactivate instead of delete
   isRestaurantManager    Boolean  @default(false)
   requiresPasswordChange Boolean  @default(true)
   createdAt              DateTime @default(now())
-
-  departments  UserDepartment[]
-  slots        ShiftSlot[]
-  availability Availability[]
 }
 
-model Department {
+model Department {                              // ✅ (+ "Shift Managers" row 🔜)
   id   String @id @default(cuid())
-  name String @unique // "Waiters", "Hostesses", "Bar"
-
-  members         UserDepartment[]
-  slots           ShiftSlot[]
-  departmentWeeks DepartmentSchedule[]
+  name String @unique
 }
 
-model UserDepartment {
-  id           String  @id @default(cuid())
+// 🔜 replaces UserDepartment's membership half. Who WORKS in a department.
+model DepartmentMembership {
+  id           String @id @default(cuid())
   userId       String
   departmentId String
-  isManager    Boolean @default(false)
-
-  user       User       @relation(fields: [userId], references: [id])
-  department Department @relation(fields: [departmentId], references: [id])
-
+  hourlyBonus  Int    @default(0)               // agorot/hour, added on top
   @@unique([userId, departmentId])
 }
 
-model ShiftTemplate {
-  id               String     @id @default(cuid())
-  label            ShiftLabel @unique
-  defaultStartTime String     // "08:00"
-  defaultEndTime   String     // "16:00"
+// 🔜 replaces UserDepartment.isManager. Who MANAGES a department (independent of membership).
+model DepartmentManager {
+  id           String @id @default(cuid())
+  userId       String @unique                   // manages at most one department
+  departmentId String                           // a department may have several managers
 }
 
-model Schedule {
-  id            String   @id @default(cuid())
-  weekStartDate DateTime @unique
-
-  shifts              Shift[]
-  departmentSchedules DepartmentSchedule[]
+// 🔜 rate history per department
+model DepartmentPayRate {
+  id                String   @id @default(cuid())
+  departmentId      String
+  effectiveFrom     DateTime                    // date the rate starts
+  payType           PayType
+  hourlyRate        Int?                        // FIXED: agorot/hour
+  minimumHourlyRate Int?                        // TIPS: guaranteed minimum, null = none
+  @@unique([departmentId, effectiveFrom])
 }
 
-model DepartmentSchedule {
-  id           String         @id @default(cuid())
-  scheduleId   String
-  departmentId String
-  status       ScheduleStatus @default(DRAFT)
-  postedAt     DateTime?
+model ShiftTemplate { id, label @unique, defaultStartTime "HH:mm", defaultEndTime }   // ✅
+model Schedule { id, weekStartDate @unique (Sunday) }                                 // ✅
+model DepartmentSchedule { id, scheduleId, departmentId, status, postedAt; @@unique([scheduleId, departmentId]) } // ✅
+model Shift { id, scheduleId, date, label, startTime, endTime; @@unique([scheduleId, date, label]) }            // ✅
+model ShiftSlot { id, shiftId, departmentId, userId? }                                // ✅
+model Availability { id, userId, date, label, available, note?; @@unique([userId, date, label]) } // ✅ table, 🔜 UI
 
-  schedule   Schedule   @relation(fields: [scheduleId], references: [id])
-  department Department @relation(fields: [departmentId], references: [id])
-
-  @@unique([scheduleId, departmentId])
+// 🔜 one row
+model RestaurantSettings {
+  id                       Int      @id @default(1)
+  availabilityDeadlineDay  Int      @default(3)       // 0=Sun … 3=Wed
+  availabilityDeadlineTime String   @default("23:59")
+  defaultLanguage          Language @default(HE)
+  timeZone                 String   @default("Asia/Jerusalem")
 }
 
-model Shift {
-  id         String     @id @default(cuid())
-  scheduleId String
-  date       DateTime
-  label      ShiftLabel
-  startTime  String
-  endTime    String
-
-  schedule Schedule    @relation(fields: [scheduleId], references: [id])
-  slots    ShiftSlot[]
-
-  @@unique([scheduleId, date, label])
+// 🔜 hours worked — from the station (FIXED depts) or entered by a shift manager (TIPS depts)
+model TimeEntry {
+  id           String          @id @default(cuid())
+  userId       String
+  departmentId String                            // pay depends on the department worked
+  shiftId      String?                           // the shift it belongs to (null if unscheduled/unknown)
+  clockIn      DateTime
+  clockOut     DateTime?                         // null = still clocked in
+  source       TimeEntrySource
+  enteredById  String?                           // shift manager / manager who entered or corrected it
+  flagged      Boolean         @default(false)   // e.g. clocked in without a slot → manager reviews
+  note         String?
+  createdAt    DateTime        @default(now())
 }
 
-model ShiftSlot {
-  id           String  @id @default(cuid())
-  shiftId      String
-  departmentId String
-  userId       String?
-
-  shift      Shift      @relation(fields: [shiftId], references: [id])
-  department Department @relation(fields: [departmentId], references: [id])
-  user       User?      @relation(fields: [userId], references: [id])
+// 🔜 one tip pool per shift, split by hours among all TIPS-department workers of that shift
+model TipPool {
+  id          String   @id @default(cuid())
+  shiftId     String   @unique
+  totalAmount Int                                // agorot
+  enteredById String
+  createdAt   DateTime @default(now())
 }
 
-model Availability {
-  id        String     @id @default(cuid())
-  userId    String
-  date      DateTime
-  label     ShiftLabel
-  available Boolean    @default(true)
-  note      String?
-
-  user User @relation(fields: [userId], references: [id])
-
-  @@unique([userId, date, label])
-}
+// 🔜 later
+model ShiftSwapRequest { id, requesterId, slotId, targetUserId?, status, createdAt }
 ```
 
-## Auth & first feature: manager account / auth system
+**Migration note:** `UserDepartment` (built) holds both membership and `isManager`. The step-1 migration splits it into `DepartmentMembership` + `DepartmentManager`, copying existing rows (members stay members; `isManager` rows become manager rows).
+
+## Pages
+Every page works on **phone** (single column, bottom tab bar) and **desktop** (side menu, wider layouts — e.g. the week as a 7-day grid). Hebrew/RTL by default.
+
+**Everyone**
+1. **Login** ✅
+2. **Change password** ✅ — forced on first login; also from Profile
+3. **Home** — my next shifts, availability deadline countdown; managers: to-dos (weeks not posted, missing availability, flagged clock-ins)
+4. **My shifts** — upcoming and past shifts, department, times
+5. **Team schedule** — any department's *posted* week, all names, week navigation
+6. **Availability** — next week's 14 shifts, can/can't + note; locked after the deadline
+8. **My hours & earnings** — monthly: hours per department, fixed pay, tip shares, top-up, bonus, total
+9. **Profile** — language, change password, my details
+
+**Department managers** (restaurant manager: all departments)
+
+10. **Schedule editor** ✅ (+ post/unpost, availability next to names, swaps)
+11. **Availability overview** — workers × shifts grid, who hasn't submitted
+12. **Attendance** — station clock-ins for the department: fix missed clock-outs, review flagged entries
+
+**Shift managers**
+
+13. **End-of-shift report** — pick a shift; enter hours for each tip-based worker and the shift's total tips; shows each person's share
+
+**Restaurant device**
+
+7. **Time clock station** — a device the restaurant manager sets up once; PIN keypad; clock in/out for FIXED-pay departments
+
+**Restaurant manager only**
+
+14. **Workers** ✅ (+ "works in" and "manages" chosen separately, PIN, per-department hourly bonus, edit details, deactivate, reset password)
+15. **Departments & pay** — pay type, rate/minimum, effective date
+16. **Restaurant settings** — availability deadline, default language, default shift times
+17. **Payroll report** — month × all workers: hours, pay, tips, top-up, bonus; export CSV/Excel
+
+**Later**
+
+18. **Request box** — workers request swaps, managers approve/reject
+
+## Build order
+1. ✅ Scaffolding, database, seed, auth, worker management, schedule editor.
+2. **Data model v2:** `DepartmentMembership` + `DepartmentManager` (migrate existing data), Shift Managers department, `DepartmentPayRate`, `RestaurantSettings`, `User.isActive/language/pinHash`. Update auth `user` shape, middleware and the Workers page.
+3. **App shell:** i18n (HE default + EN, RTL), responsive navigation (bottom tabs on phone, side menu on desktop). Convert existing pages.
+4. **Posting + Team schedule + My shifts.**
+5. **Availability** with deadline (+ Restaurant settings page).
+6. **Time clock station + Attendance** (PIN, flagged entries).
+7. **End-of-shift report** (manual hours + tip pool).
+8. **Departments & pay, My hours & earnings, Payroll report.**
+9. **PWA + deployment** (installable on iPhone, hosted server/client).
+10. Later: Request box.
+
+## Auth API (built)
 
 ### Password rules
-- Hashed with bcrypt, 10–12 salt rounds.
-- Minimum 8 characters, at least one letter and one number.
+- Hashed with bcrypt (12 rounds). Minimum 8 characters, at least one letter and one number.
 - No public self-registration — accounts are only created by the restaurant manager.
-- The first restaurant-manager account is created via a one-off seed script (`server/src/prisma/seed.ts`, run with `npx prisma db seed`), not an API route.
-- New users get `requiresPasswordChange: true`; the frontend forces a password-change screen on first login.
+- The first restaurant-manager account is created by the seed script (`server/src/prisma/seed.ts`, `npx prisma db seed`, details from `server/.env`), not an API route.
+- New users get `requiresPasswordChange: true`; the frontend forces a password change on first login.
 
 ### JWT
-- Payload: `{ userId }` only — no roles/departments baked in, since those can change. Middleware re-fetches current role/department data from the DB on every request.
-- Expiry: 7 days. Secret in `server/.env` as `JWT_SECRET`.
+- Payload `{ userId }` only — roles/departments are re-fetched from the DB on every request. Expiry 7 days. Secret `JWT_SECRET` in `server/.env`.
 
 ### Routes
-
-**POST /api/auth/login**
-Request: `{ email, password }`
-200: `{ token, user: { id, name, email, isRestaurantManager, requiresPasswordChange, departments: [{ departmentId, departmentName, isManager }] } }`
-401: `{ error: "Invalid email or password" }`
-
-**GET /api/auth/me** (auth required) — returns the same `user` shape.
-
-**PATCH /api/auth/password** (auth required)
-Request: `{ currentPassword, newPassword }` → 200: `{ success: true }`, clears `requiresPasswordChange`.
-
-**POST /api/users** (restaurant-manager only)
-Request: `{ name, email, temporaryPassword, departments: [{ departmentId, isManager }] }`
-201: created user object (no password hash). 403 if caller isn't the restaurant manager.
-
-**GET /api/users** (restaurant-manager only)
-200: `{ users: [{ id, name, email, isRestaurantManager, departments: [...] }] }`
-
-**PATCH /api/users/:id/departments** (restaurant-manager only)
-Request: `{ departments: [{ departmentId, isManager }] }` — full replace of that user's department memberships.
-200: updated user object.
-
-### Middleware
-```ts
-// req.user after `authenticate` middleware:
-{
-  id: string;
-  isRestaurantManager: boolean;
-  departments: { departmentId: string; isManager: boolean }[];
-}
-```
-- `requireRestaurantManager` — checks `req.user.isRestaurantManager`.
-- `requireDepartmentManager(departmentId)` — true if `isRestaurantManager` OR a matching `{ departmentId, isManager: true }` entry. Reuse this for shift/slot routes later.
+- **POST /api/auth/login** `{ email, password }` → 200 `{ token, user }` · 401 `{ error: "Invalid email or password" }`
+- **GET /api/auth/me** → `{ user }`
+- **PATCH /api/auth/password** `{ currentPassword, newPassword }` → `{ success: true }`, clears `requiresPasswordChange`
+- `user` shape (current): `{ id, name, email, isRestaurantManager, requiresPasswordChange, departments: [{ departmentId, departmentName, isManager }] }` — changes in build step 2 to separate memberships and managed department.
+- User management, departments, schedules, shifts and slots routes: see CLAUDE.md "Folder structure".
 
 ## Known simplifications (worth mentioning as "what I'd improve" in an interview)
-- `startTime`/`endTime` stored as `"HH:mm"` strings rather than proper time values — fine for MVP, would move to real time arithmetic for overlap detection later.
-- Slot capacity has no DB-level enforcement (can't easily do "count of related rows ≤ N" in Postgres) — enforced in the Express route layer instead.
-
-## Suggested build order
-1. Repo scaffolding: `/client` (Vite + React + TS + Tailwind), `/server` (Express + TS), Prisma init.
-2. Wire the Prisma schema above into `server/src/prisma/schema.prisma`, connect to a hosted Postgres DB (e.g. Neon), run the first migration.
-3. Seed script for the first restaurant-manager account.
-4. Auth: login, `/me`, password change, JWT middleware.
-5. Restaurant-manager-only user creation + department assignment routes.
-6. Then move on to shift/schedule features.
+- `startTime`/`endTime` stored as `"HH:mm"` strings — fine for fixed morning/evening shifts; would move to real time arithmetic for overlap detection.
+- Slot capacity has no DB-level enforcement — enforced in the Express route layer.
+- Single restaurant (no `Restaurant` table / multi-tenancy).
