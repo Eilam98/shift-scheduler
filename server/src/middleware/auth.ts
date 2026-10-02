@@ -118,3 +118,17 @@ export async function canManageUser(user: AuthenticatedUser, targetUserId: strin
   });
   return membership !== null;
 }
+
+/** The seeded name of the department whose members are shift managers. */
+const SHIFT_MANAGERS_DEPARTMENT = "Shift Managers";
+
+/**
+ * May `user` see schedules that aren't posted yet (read-only where they can't
+ * edit)? The restaurant manager, any department manager, and shift managers.
+ */
+export async function canViewDrafts(user: AuthenticatedUser): Promise<boolean> {
+  if (user.isRestaurantManager || user.managedDepartmentIds.length > 0) return true;
+  if (user.memberDepartmentIds.length === 0) return false;
+  const shiftManagers = await prisma.department.findUnique({ where: { name: SHIFT_MANAGERS_DEPARTMENT } });
+  return !!shiftManagers && user.memberDepartmentIds.includes(shiftManagers.id);
+}

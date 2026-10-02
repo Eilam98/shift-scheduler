@@ -58,6 +58,8 @@ export interface DepartmentWeek {
   postedAt: string | null
   canEdit: boolean
   shifts: Shift[]
+  // Editors: this department's workers already working a shift of this week in another department
+  elsewhere: { userId: string; shiftId: string; departmentId: string; departmentName: string }[]
 }
 
 // GET /api/departments/:id/members

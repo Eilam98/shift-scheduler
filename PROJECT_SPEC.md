@@ -38,7 +38,7 @@ Rules:
 - A `Schedule` is one week, **Sunday–Saturday**. Every day has exactly two shifts: **MORNING** and **EVENING** (default times from `ShiftTemplate`, overridable per shift).
 - A `Shift` is shared by all departments; each department staffs it with its own `ShiftSlot` rows (empty or filled by one worker). No stored "required count" — managers add/remove slots.
 - A slot can only be filled by a **member** of its department; a person can hold **one slot per shift** across all departments.
-- Posting is **per department per week** (`DepartmentSchedule.status` DRAFT/POSTED). Workers see a department's week (the whole team, all names) **only once it is posted**. Posting with empty slots is allowed after a warning; a manager can unpost.
+- Posting is **per department per week** (`DepartmentSchedule.status` DRAFT/POSTED). Workers see a department's week (the whole team, all names) **only once it is posted**. **Shift managers** (members of Shift Managers), **department managers** and the restaurant manager can also see every department's **draft** — read-only where they can't edit. Posting with empty slots is allowed after a warning; a manager can unpost.
 - Posted weeks **stay editable** — changes are live for workers.
 - **Notifications (in-app):** when a week is posted, everyone with a shift in it is notified; after posting, a worker added to or removed from a slot is notified (nobody is notified of their own change; drafts notify nobody). Stored as structured rows and translated on display. Phone push (Web Push) reuses them in step 9.
 - Only department managers (and the restaurant manager) change a schedule, including swaps. Later: a **Request box** where workers ask for a swap and managers approve.
@@ -48,6 +48,7 @@ Rules:
 - **Deadline:** Wednesday 23:59 (Israel time) before the week starts *(for the week starting Sunday S, the deadline is Wednesday S−4 at 23:59; the week locks when that minute ends)*. After the deadline the worker can't submit or change it. The restaurant manager can change the deadline day/time in settings.
 - **Workers' submissions (הגשות העובדים):** a manager sees the submissions of everyone who works in a department they manage (restaurant manager: everyone) and **can change them at any time, even after the deadline** — e.g. a worker who missed it contacts the manager outside the app. A submission is per person, so a change applies in every department the worker belongs to. Changes by a manager are marked (`updatedById`).
 - Managers see availability next to names while building the schedule (✓ can, ~ prefer not, ? no answer, ✗ can't); it informs, it doesn't block.
+- **Workers panel** (editor, under the Post box; beside the grid and sticky on wide screens): the department's workers with their number of shifts this week (all departments) and a "?" if they didn't submit. Selecting a worker colours each shift: green can, yellow prefer not, red can't, **blue already working that shift in another department** (wins over the rest), none = no answer. Assign by **dragging the name onto a shift** (desktop) or **tapping the name, then the shift's add button** (any device): fills the first empty slot, else adds a slot; dropping on a filled slot replaces that person. Red asks for confirmation; blue is blocked (one slot per shift).
 
 ## Settings & language
 - `RestaurantSettings` (one row): availability deadline day + time, default language (HE), time zone (`Asia/Jerusalem`), default shift times.
@@ -201,7 +202,7 @@ Every page works on **phone** (single column, bottom tab bar) and **desktop** (s
 
 **Department managers** (restaurant manager: all departments)
 
-10. **Schedule editor** ✅ (post/unpost, availability next to names)
+10. **Schedule editor** ✅ (post/unpost, availability next to names, workers panel with availability colours + drag/tap to assign)
 11. **Workers' submissions (הגשות העובדים)** ✅ — workers × shifts, who hasn't submitted; managers can edit any of their workers' weeks at any time
 12. **Attendance** ✅ — a week of clock-ins for the department(s): fix times and missed clock-outs, assign a department, approve flagged entries, add/delete entries
 

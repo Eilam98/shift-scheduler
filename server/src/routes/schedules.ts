@@ -6,6 +6,7 @@ import { notifyWeekPosted } from "../lib/notifications";
 import {
   authenticate,
   canManageDepartment,
+  canViewDrafts,
   requireAnyManager,
   requireDepartmentManager,
 } from "../middleware/auth";
@@ -75,8 +76,8 @@ router.post("/", requireAnyManager, async (req, res) => {
 /**
  * GET /api/schedules/:weekStart/departments/:departmentId — one department's
  * view of the week: every shift with that department's slots. Managers of the
- * department (and the restaurant manager) see drafts; everyone else only
- * once the department has POSTED it.
+ * department (and the restaurant manager) edit it; department managers and
+ * shift managers can also read drafts; everyone else only once POSTED.
  */
 router.get("/:weekStart/departments/:departmentId", async (req, res) => {
   const weekStart = parseWeekStart(req.params.weekStart);
@@ -108,11 +109,25 @@ router.get("/:weekStart/departments/:departmentId", async (req, res) => {
   }
 
   const canEdit = canManageDepartment(req.user!, departmentId);
-  if (!canEdit && departmentSchedule.status !== "POSTED") {
+  if (!canEdit && departmentSchedule.status !== "POSTED" && !(await canViewDrafts(req.user!))) {
     return res
       .status(403)
       .json({ error: "This schedule hasn't been posted yet", code: "SCHEDULE_NOT_POSTED" });
   }
+
+  // Editors: which of this department's workers already work a shift of this
+  // week in ANOTHER department (blue in the workers panel; counts toward their
+  // shifts this week).
+  const elsewhere = canEdit
+    ? await prisma.shiftSlot.findMany({
+        where: {
+          shift: { scheduleId: schedule.id },
+          departmentId: { not: departmentId },
+          user: { memberships: { some: { departmentId } } },
+        },
+        include: { department: { select: { name: true } } },
+      })
+    : [];
 
   return res.status(200).json({
     schedule: toScheduleResponse(schedule),
@@ -128,6 +143,12 @@ router.get("/:weekStart/departments/:departmentId", async (req, res) => {
       startTime: shift.startTime,
       endTime: shift.endTime,
       slots: shift.slots.map((slot) => ({ id: slot.id, user: slot.user })),
+    })),
+    elsewhere: elsewhere.map((slot) => ({
+      userId: slot.userId!,
+      shiftId: slot.shiftId,
+      departmentId: slot.departmentId,
+      departmentName: slot.department.name,
     })),
   });
 });

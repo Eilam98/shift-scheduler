@@ -3,13 +3,15 @@ import { Link, Navigate, useParams, useSearchParams } from 'react-router'
 import { useAuth } from '../auth/authContext'
 import { ReadOnlyShift } from '../components/ReadOnlyShift'
 import { ShiftCard } from '../components/ShiftCard'
+import { StaffingPanel } from '../components/StaffingPanel'
 import { Button, Card, ErrorMessage, Screen } from '../components/ui'
 import { WeekNav } from '../components/WeekNav'
 import { useI18n } from '../i18n/i18nContext'
 import { ApiError, api } from '../lib/api'
 import { STATUS_CLASSES, STATUS_LABEL, STATUS_SYMBOL } from '../lib/availability'
 import { addDays, currentWeekStart, formatDay, isWeekStart } from '../lib/dates'
-import type { Department, DepartmentWeek, Member, ScheduleStatus, Slot, TeamAvailability } from '../types'
+import { highlightFor, shiftCounts } from '../lib/staffing'
+import type { Department, DepartmentWeek, Member, ScheduleStatus, Shift, Slot, TeamAvailability } from '../types'
 
 type Loaded =
   | { kind: 'ready'; week: DepartmentWeek; members: Member[]; availability: TeamAvailability['workers'] }
@@ -20,7 +22,9 @@ type Loaded =
 /**
  * /schedule/:departmentId?week=YYYY-MM-DD — one department's week, for
  * everyone. Managers of the department (and the restaurant manager) edit and
- * post it; everyone else sees it read-only once it's posted (Team schedule).
+ * post it, with the workers panel (availability colours, drag / tap to assign);
+ * department and shift managers can read drafts; everyone else sees it
+ * read-only once it's posted (Team schedule).
  * Without a departmentId it opens your first managed department, else your
  * first department, else the first one.
  */
@@ -38,6 +42,11 @@ export function SchedulePage() {
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
   const [allDepartments, setAllDepartments] = useState<Department[] | null>(null)
+  // Workers panel: the selected worker (tied to this department + week), the shift
+  // being saved, and the last assignment problem.
+  const [selection, setSelection] = useState<{ key: string; id: string } | null>(null)
+  const [pendingShiftId, setPendingShiftId] = useState<string | null>(null)
+  const [staffError, setStaffError] = useState<string | null>(null)
 
   const canManage =
     !!user &&
@@ -132,6 +141,53 @@ export function SchedulePage() {
 
   const week = loaded?.kind === 'ready' ? loaded.week : null
   const days = week ? groupByDate(week.shifts) : []
+  const team = loaded?.kind === 'ready' ? loaded.availability : []
+  const pageKey = `${departmentId}/${weekStart}`
+  const selectedId = selection?.key === pageKey ? selection.id : null
+  const selectedWorker = team.find((w) => w.id === selectedId) ?? null
+  const counts = week?.canEdit ? shiftCounts(week) : new Map<string, number>()
+
+  function selectWorker(id: string | null) {
+    setStaffError(null)
+    setSelection(id ? { key: pageKey, id } : null)
+  }
+
+  /**
+   * Put a worker on a shift from the panel (drag or the add button): into the
+   * given slot, else the first empty one, else a new slot. "Can't" asks first;
+   * already here / working this shift elsewhere is refused (one slot per shift).
+   */
+  async function assignWorker(shift: Shift, userId: string, slotId?: string) {
+    if (!week) return
+    setStaffError(null)
+    const name = team.find((w) => w.id === userId)?.name ?? ''
+    const status = highlightFor(userId, shift, team, week.elsewhere)
+    if (status.kind === 'HERE') return setStaffError(t('schedule.alreadyInShift', { name }))
+    if (status.kind === 'ELSEWHERE') {
+      return setStaffError(
+        t('schedule.workingElsewhere', { name, department: departmentName(status.departmentName) })
+      )
+    }
+    if (status.kind === 'UNAVAILABLE' && !window.confirm(t('schedule.confirmUnavailable', { name }))) return
+
+    setPendingShiftId(shift.id)
+    try {
+      let slots = shift.slots
+      let target = slotId ?? slots.find((s) => !s.user)?.id
+      if (!target) {
+        const created = await api<Slot>(`/shifts/${shift.id}/slots`, { method: 'POST', body: { departmentId } })
+        slots = [...slots, created]
+        updateSlots(shift.id, slots)
+        target = created.id
+      }
+      const updated = await api<Slot>(`/slots/${target}`, { method: 'PATCH', body: { userId } })
+      updateSlots(shift.id, slots.map((s) => (s.id === target ? updated : s)))
+    } catch (err) {
+      setStaffError(errorMessage(err))
+    } finally {
+      setPendingShiftId(null)
+    }
+  }
 
   return (
     <Screen
@@ -165,7 +221,7 @@ export function SchedulePage() {
       )}
 
       <WeekNav weekStart={weekStart} onPrev={() => goToWeek(-7)} onNext={() => goToWeek(7)}>
-        {week?.canEdit && (
+        {week && (week.canEdit || week.status === 'DRAFT') && (
           <p
             className={`text-xs font-semibold tracking-wide uppercase ${
               week.status === 'POSTED' ? 'text-green-700' : 'text-amber-600'
@@ -209,29 +265,53 @@ export function SchedulePage() {
         />
       )}
 
-      {week && loaded?.kind === 'ready' && week.canEdit && <AvailabilityLegend />}
-
-      {/* Editor: one day per row on phones, a 2–7 column grid on desktop. */}
+      {/* Editor. Phone: the workers panel under the post box, then one day per row.
+          Wide screens: the panel beside the week grid, sticky while scrolling. */}
       {week && loaded?.kind === 'ready' && week.canEdit && (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
-          {days.map(([date, shifts]) => (
-            <Card key={date} className="p-4 2xl:p-3">
-              <h2 className="mb-3 font-semibold text-slate-900">{formatDay(date, locale)}</h2>
-              <div className="space-y-2">
-                {shifts.map((shift) => (
-                  <ShiftCard
-                    key={shift.id}
-                    shift={shift}
-                    departmentId={departmentId}
-                    canEdit
-                    members={loaded.members}
-                    availability={loaded.availability}
-                    onSlotsChange={(slots) => updateSlots(shift.id, slots)}
-                  />
-                ))}
+        <div className="lg:flex lg:items-start lg:gap-4">
+          <aside className="mb-4 lg:sticky lg:top-16 lg:mb-0 lg:max-h-[calc(100dvh-5rem)] lg:w-64 lg:shrink-0 lg:overflow-y-auto">
+            <StaffingPanel workers={team} counts={counts} selectedId={selectedId} onSelect={selectWorker} />
+          </aside>
+
+          <div className="min-w-0 flex-1">
+            {staffError && (
+              <div className="mb-3">
+                <ErrorMessage>{staffError}</ErrorMessage>
               </div>
-            </Card>
-          ))}
+            )}
+            {selectedWorker && (
+              <p className="mb-3 rounded-lg bg-indigo-50 px-3 py-2 text-sm text-indigo-900">
+                {t('staffing.selected', { name: selectedWorker.name })}{' '}
+                <button onClick={() => selectWorker(null)} className="ms-2 font-medium underline">
+                  {t('staffing.clear')}
+                </button>
+              </p>
+            )}
+            <AvailabilityLegend />
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+              {days.map(([date, shifts]) => (
+                <Card key={date} className="p-4 2xl:p-3">
+                  <h2 className="mb-3 font-semibold text-slate-900">{formatDay(date, locale)}</h2>
+                  <div className="space-y-2">
+                    {shifts.map((shift) => (
+                      <ShiftCard
+                        key={shift.id}
+                        shift={shift}
+                        departmentId={departmentId}
+                        members={loaded.members}
+                        availability={team}
+                        selected={selectedWorker && { id: selectedWorker.id, name: selectedWorker.name }}
+                        highlight={selectedId ? highlightFor(selectedId, shift, team, week.elsewhere) : null}
+                        pending={pendingShiftId === shift.id}
+                        onAssignWorker={(userId, slotId) => assignWorker(shift, userId, slotId)}
+                        onSlotsChange={(slots) => updateSlots(shift.id, slots)}
+                      />
+                    ))}
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
