@@ -28,6 +28,8 @@ export interface UserListItem extends DepartmentRoles {
   email: string
   isRestaurantManager: boolean
   isActive: boolean
+  hasPin: boolean // has a time clock PIN
+  canClockIn: boolean // works in an hourly department
 }
 
 export type ShiftLabel = 'MORNING' | 'EVENING'
@@ -73,6 +75,7 @@ export interface User extends DepartmentRoles {
   isRestaurantManager: boolean
   requiresPasswordChange: boolean
   language: Language | null // null = restaurant default
+  managesHourly: boolean // sees the Attendance page
 }
 
 export type Language = 'HE' | 'EN'
@@ -138,4 +141,48 @@ export interface RestaurantSettings {
   defaultLanguage: Language
   timeZone: string
   shiftTemplates: { label: ShiftLabel; defaultStartTime: string; defaultEndTime: string }[]
+}
+
+// Time clock (server/src/routes/station.ts, stations.ts)
+export interface StationDevice {
+  id: string
+  name: string
+  createdAt: string
+  lastUsedAt: string | null
+  revokedAt: string | null
+}
+
+export interface PunchResult {
+  action: 'IN' | 'OUT'
+  name: string
+  at: string // ISO, server clock
+  clockIn?: string // OUT: when this entry started
+  department: Department | null
+  scheduled?: boolean // IN: matched a slot
+}
+
+// GET /api/attendance (server/src/routes/attendance.ts)
+export interface AttendanceEntry {
+  id: string
+  user: { id: string; name: string }
+  department: Department | null
+  shift: { date: string; label: ShiftLabel; startTime: string; endTime: string } | null
+  clockIn: string
+  clockOut: string | null
+  source: 'STATION' | 'MANUAL'
+  station: string | null
+  flagged: boolean
+  reviewedAt: string | null
+  reviewedBy: string | null
+  enteredBy: string | null
+  note: string | null
+  missingClockOut: boolean
+}
+
+export interface AttendanceWeek {
+  weekStartDate: string
+  timeZone: string
+  departments: Department[]
+  workers: { id: string; name: string; departmentIds: string[] }[]
+  entries: AttendanceEntry[]
 }

@@ -7,6 +7,7 @@ import {
   GearIcon,
   HomeIcon,
   ListCheckIcon,
+  StopwatchIcon,
   UserIcon,
   UsersIcon,
 } from './icons'
@@ -30,6 +31,7 @@ export function navItems(user: User): NavItem[] {
     { to: '/schedule', label: 'nav.schedule', icon: CalendarIcon },
     worksShifts && { to: '/my-shifts', label: 'nav.myShifts', icon: ClockIcon },
     (worksShifts || isManager) && { to: '/availability', label: 'nav.availability', icon: ListCheckIcon },
+    user.managesHourly && { to: '/attendance', label: 'nav.attendance', icon: StopwatchIcon },
     user.isRestaurantManager && { to: '/workers', label: 'nav.workers', icon: UsersIcon },
     user.isRestaurantManager && { to: '/settings', label: 'nav.settings', icon: GearIcon },
     { to: '/profile', label: 'nav.profile', icon: UserIcon },

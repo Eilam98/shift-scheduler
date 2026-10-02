@@ -96,3 +96,25 @@ export function weekStartOf(date: string): Date {
   const d = parseDate(date)!;
   return addDays(d, -((d.getUTCDay() - WEEK_START_DAY + 7) % 7));
 }
+
+/**
+ * The real start and end moments of a shift (date + "HH:mm" times in the
+ * restaurant zone). An end time not after the start means it ends next day.
+ */
+export function shiftWindow(
+  date: Date,
+  startTime: string,
+  endTime: string,
+  timeZone: string
+): { start: Date; end: Date } {
+  const day = toDateString(date);
+  const endDay = endTime <= startTime ? toDateString(addDays(date, 1)) : day;
+  return { start: zonedTimeToUtc(day, startTime, timeZone), end: zonedTimeToUtc(endDay, endTime, timeZone) };
+}
+
+/** "YYYY-MM-DDTHH:mm" (an <input type="datetime-local"> value) in a time zone → the real moment, or null. */
+export function parseZonedDateTime(value: string, timeZone: string): Date | null {
+  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})$/.exec(value);
+  if (!match || !parseDate(match[1]) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(match[2])) return null;
+  return zonedTimeToUtc(match[1], match[2], timeZone);
+}

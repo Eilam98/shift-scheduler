@@ -4,13 +4,13 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { comparePassword, hashPassword, isValidPassword, signToken } from "../lib/auth";
 import { departmentRolesInclude, toDepartmentRoles } from "../lib/users";
+import { hourlyDepartmentIds } from "../lib/pay";
 import { authenticate } from "../middleware/auth";
 
 const router = Router();
 
-function toUserResponse(
-  user: Prisma.UserGetPayload<{ include: typeof departmentRolesInclude }>
-) {
+async function toUserResponse(user: Prisma.UserGetPayload<{ include: typeof departmentRolesInclude }>) {
+  const hourly = await hourlyDepartmentIds();
   return {
     id: user.id,
     name: user.name,
@@ -19,6 +19,8 @@ function toUserResponse(
     requiresPasswordChange: user.requiresPasswordChange,
     language: user.language, // null = restaurant default
     ...toDepartmentRoles(user),
+    // Sees the Attendance page: restaurant manager, or manages an hourly department.
+    managesHourly: user.isRestaurantManager || user.managedDepartments.some((m) => hourly.has(m.departmentId)),
   };
 }
 
@@ -55,7 +57,7 @@ router.post("/login", async (req, res) => {
   }
 
   const token = signToken({ userId: user.id });
-  return res.status(200).json({ token, user: toUserResponse(user) });
+  return res.status(200).json({ token, user: await toUserResponse(user) });
 });
 
 // GET /api/auth/me
@@ -69,7 +71,7 @@ router.get("/me", authenticate, async (req, res) => {
     return res.status(401).json({ error: "User no longer exists" });
   }
 
-  return res.status(200).json({ user: toUserResponse(user) });
+  return res.status(200).json({ user: await toUserResponse(user) });
 });
 
 const passwordChangeSchema = z.object({
@@ -130,7 +132,7 @@ router.patch("/language", authenticate, async (req, res) => {
     include: departmentRolesInclude,
   });
 
-  return res.status(200).json({ user: toUserResponse(user) });
+  return res.status(200).json({ user: await toUserResponse(user) });
 });
 
 export default router;

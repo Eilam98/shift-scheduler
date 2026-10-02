@@ -86,6 +86,15 @@ export function GearIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function StopwatchIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="13" r="8" />
+      <path d="M12 9v4l2.5 2M9.5 2h5M12 2v3" />
+    </Icon>
+  )
+}
+
 export function MoreIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>

@@ -4,6 +4,8 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { hashPassword, isValidPassword } from "../lib/auth";
 import { departmentRolesInclude, toDepartmentRoles } from "../lib/users";
+import { hourlyDepartmentIds } from "../lib/pay";
+import { generateUniquePin } from "../lib/pins";
 import { authenticate, requireRestaurantManager } from "../middleware/auth";
 
 const router = Router();
@@ -62,13 +64,19 @@ async function validateDepartmentRoles(
   return null;
 }
 
-function toUserListItem(user: Prisma.UserGetPayload<{ include: typeof departmentRolesInclude }>) {
+/** `hourly` = departments that clock in (see lib/pay.ts). */
+function toUserListItem(
+  user: Prisma.UserGetPayload<{ include: typeof departmentRolesInclude }>,
+  hourly: Set<string>
+) {
   return {
     id: user.id,
     name: user.name,
     email: user.email,
     isRestaurantManager: user.isRestaurantManager,
     isActive: user.isActive,
+    hasPin: user.pinHash !== null,
+    canClockIn: user.memberships.some((m) => hourly.has(m.departmentId)),
     ...toDepartmentRoles(user),
   };
 }
@@ -121,17 +129,17 @@ router.post("/", async (req, res) => {
     include: departmentRolesInclude,
   });
 
-  return res.status(201).json(toUserListItem(user));
+  return res.status(201).json(toUserListItem(user, await hourlyDepartmentIds()));
 });
 
 // GET /api/users — restaurant-manager only
 router.get("/", async (_req, res) => {
-  const users = await prisma.user.findMany({
-    include: departmentRolesInclude,
-    orderBy: { name: "asc" },
-  });
+  const [users, hourly] = await Promise.all([
+    prisma.user.findMany({ include: departmentRolesInclude, orderBy: { name: "asc" } }),
+    hourlyDepartmentIds(),
+  ]);
 
-  return res.status(200).json({ users: users.map(toUserListItem) });
+  return res.status(200).json({ users: users.map((u) => toUserListItem(u, hourly)) });
 });
 
 // PATCH /api/users/:id/departments — restaurant-manager only, full replace of
@@ -180,7 +188,26 @@ router.patch("/:id/departments", async (req, res) => {
     return tx.user.findUniqueOrThrow({ where: { id }, include: departmentRolesInclude });
   });
 
-  return res.status(200).json(toUserListItem(user));
+  return res.status(200).json(toUserListItem(user, await hourlyDepartmentIds()));
+});
+
+/**
+ * POST /api/users/:id/pin — create (or replace) a worker's time clock PIN: a
+ * random unique 4 digits, returned ONCE to pass on. Only people in an hourly
+ * department clock in, so only they get one.
+ */
+router.post("/:id/pin", async (req, res) => {
+  const user = await prisma.user.findUnique({ where: { id: req.params.id as string }, include: { memberships: true } });
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  const hourly = await hourlyDepartmentIds();
+  if (!user.memberships.some((m) => hourly.has(m.departmentId))) {
+    return res.status(400).json({ error: "Only people in an hourly department clock in", code: "NOT_HOURLY" });
+  }
+
+  const { pin, pinHash } = await generateUniquePin();
+  await prisma.user.update({ where: { id: user.id }, data: { pinHash } });
+  return res.status(200).json({ pin });
 });
 
 export default router;

@@ -28,6 +28,11 @@ enum Language {
   EN
 }
 
+enum TimeEntrySource {
+  STATION // punched at a time clock station
+  MANUAL // entered or added by a manager
+}
+
 enum AvailabilityStatus {
   AVAILABLE
   PREFER_NOT
@@ -45,19 +50,23 @@ model User {
   name                   String
   email                  String    @unique
   passwordHash           String
-  pinHash                String? // time clock station PIN, hashed like passwords
+  pinHash                String?   @unique // time clock PIN as a keyed hash (HMAC) — lookup by PIN, kept unique
   language               Language? // null = restaurant default
   isActive               Boolean   @default(true) // deactivate instead of delete, so history stays
   isRestaurantManager    Boolean   @default(false)
   requiresPasswordChange Boolean   @default(true)
   createdAt              DateTime  @default(now())
 
-  memberships        DepartmentMembership[]
-  managedDepartments DepartmentManager[]
-  slots              ShiftSlot[]
-  availability       Availability[]
-  availabilityEdits  Availability[]         @relation("AvailabilityUpdatedBy")
-  notifications      Notification[]
+  memberships         DepartmentMembership[]
+  managedDepartments  DepartmentManager[]
+  slots               ShiftSlot[]
+  availability        Availability[]
+  availabilityEdits   Availability[]         @relation("AvailabilityUpdatedBy")
+  notifications       Notification[]
+  timeEntries         TimeEntry[]            @relation("TimeEntryUser")
+  timeEntriesEntered  TimeEntry[]            @relation("TimeEntryEnteredBy")
+  timeEntriesReviewed TimeEntry[]            @relation("TimeEntryReviewedBy")
+  stationsCreated     StationDevice[]
 }
 
 model Department {
@@ -70,6 +79,7 @@ model Department {
   slots           ShiftSlot[]
   departmentWeeks DepartmentSchedule[]
   notifications   Notification[]
+  timeEntries     TimeEntry[]
 }
 
 // Who WORKS in a department (can be put on its slots).
@@ -165,6 +175,7 @@ model Shift {
   schedule      Schedule       @relation(fields: [scheduleId], references: [id])
   slots         ShiftSlot[]
   notifications Notification[]
+  timeEntries   TimeEntry[]
 
   @@unique([scheduleId, date, label])
 }
@@ -220,4 +231,50 @@ model Notification {
   shift      Shift?     @relation(fields: [shiftId], references: [id])
 
   @@index([userId, createdAt])
+}
+
+// Hours worked: punched at a station (hourly departments) or entered by a
+// manager. departmentId null = clocked in unscheduled while in several hourly
+// departments — the manager assigns it on the Attendance page.
+model TimeEntry {
+  id           String          @id @default(cuid())
+  userId       String
+  departmentId String?
+  shiftId      String? // the matched shift (null if unscheduled)
+  clockIn      DateTime
+  clockOut     DateTime? // null = still clocked in
+  source       TimeEntrySource
+  stationId    String?
+  enteredById  String? // manager who added or last corrected it
+  flagged      Boolean         @default(false) // clocked in without a slot
+  reviewedAt   DateTime? // a manager approved the flag
+  reviewedById String?
+  note         String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  user       User           @relation("TimeEntryUser", fields: [userId], references: [id])
+  department Department?    @relation(fields: [departmentId], references: [id])
+  shift      Shift?         @relation(fields: [shiftId], references: [id])
+  station    StationDevice? @relation(fields: [stationId], references: [id])
+  enteredBy  User?          @relation("TimeEntryEnteredBy", fields: [enteredById], references: [id])
+  reviewedBy User?          @relation("TimeEntryReviewedBy", fields: [reviewedById], references: [id])
+
+  @@index([userId, clockIn])
+  @@index([departmentId, clockIn])
+}
+
+// A browser the restaurant manager activated as the time clock. It sends its
+// secret key with every request; only the SHA-256 of the key is stored.
+model StationDevice {
+  id          String    @id @default(cuid())
+  name        String
+  tokenHash   String    @unique
+  createdById String
+  createdAt   DateTime  @default(now())
+  lastUsedAt  DateTime?
+  revokedAt   DateTime?
+
+  createdBy   User        @relation(fields: [createdById], references: [id])
+  timeEntries TimeEntry[]
 }

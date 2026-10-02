@@ -124,6 +124,7 @@ export function WorkersPage() {
               <WorkerCard
                 key={user.id}
                 user={user}
+                onPinCreated={() => replaceUser({ ...user, hasPin: true })}
                 onEdit={
                   user.isRestaurantManager
                     ? undefined
@@ -141,7 +142,15 @@ export function WorkersPage() {
   )
 }
 
-function WorkerCard({ user, onEdit }: { user: UserListItem; onEdit?: () => void }) {
+function WorkerCard({
+  user,
+  onEdit,
+  onPinCreated,
+}: {
+  user: UserListItem
+  onEdit?: () => void
+  onPinCreated?: () => void
+}) {
   const { t, departmentName } = useI18n()
   return (
     <Card>
@@ -182,7 +191,80 @@ function WorkerCard({ user, onEdit }: { user: UserListItem; onEdit?: () => void 
           ))}
         </div>
       )}
+      {user.canClockIn && <PinControl user={user} onCreated={onPinCreated} />}
     </Card>
+  )
+}
+
+/**
+ * Time clock PIN: create (or replace) a random unique 4-digit PIN and show it
+ * once to pass on. Only for people in an hourly department.
+ */
+function PinControl({ user, onCreated }: { user: UserListItem; onCreated?: () => void }) {
+  const { t, errorMessage } = useI18n()
+  const [pin, setPin] = useState<string | null>(null)
+  const [confirming, setConfirming] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function create() {
+    setError(null)
+    setBusy(true)
+    try {
+      const result = await api<{ pin: string }>(`/users/${user.id}/pin`, { method: 'POST' })
+      setPin(result.pin)
+      setConfirming(false)
+      onCreated?.()
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="mt-3 border-t border-slate-100 pt-3 text-sm">
+      {pin ? (
+        <div className="rounded-lg bg-green-50 p-3 text-green-900">
+          <p>{t('workers.pinCreated', { name: user.name })}</p>
+          <p className="mt-1 text-3xl font-bold tracking-[0.3em]" dir="ltr">
+            {pin}
+          </p>
+          <p className="mt-1 text-xs">{t('workers.pinOnce')}</p>
+          <button onClick={() => setPin(null)} className="mt-2 font-medium underline">
+            {t('common.done')}
+          </button>
+        </div>
+      ) : confirming ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-slate-700">{t('workers.pinReplaceConfirm')}</span>
+          <button onClick={create} disabled={busy} className="font-medium text-indigo-600">
+            {busy ? t('common.saving') : t('workers.pinReplaceYes')}
+          </button>
+          <button onClick={() => setConfirming(false)} className="text-slate-500">
+            {t('common.cancel')}
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between gap-3">
+          <span className={user.hasPin ? 'text-slate-600' : 'text-amber-700'}>
+            {user.hasPin ? t('workers.pinSet') : t('workers.pinMissing')}
+          </span>
+          <button
+            onClick={() => (user.hasPin ? setConfirming(true) : create())}
+            disabled={busy}
+            className="font-medium text-indigo-600"
+          >
+            {busy ? t('common.saving') : user.hasPin ? t('workers.pinNew') : t('workers.pinCreate')}
+          </button>
+        </div>
+      )}
+      {error && (
+        <div className="mt-2">
+          <ErrorMessage>{error}</ErrorMessage>
+        </div>
+      )}
+    </div>
   )
 }
 
