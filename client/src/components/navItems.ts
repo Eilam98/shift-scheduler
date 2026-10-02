@@ -3,6 +3,7 @@ import type { MessageKey } from '../i18n/messages'
 import type { User } from '../types'
 import {
   CalendarIcon,
+  GameIcon,
   ClockIcon,
   GearIcon,
   HomeIcon,
@@ -34,6 +35,7 @@ export function navItems(user: User): NavItem[] {
     user.managesHourly && { to: '/attendance', label: 'nav.attendance', icon: StopwatchIcon },
     user.isRestaurantManager && { to: '/workers', label: 'nav.workers', icon: UsersIcon },
     user.isRestaurantManager && { to: '/settings', label: 'nav.settings', icon: GearIcon },
+    { to: '/tetris', label: 'nav.tetris', icon: GameIcon },
     { to: '/profile', label: 'nav.profile', icon: UserIcon },
   ]
   return items.filter((item): item is NavItem => item !== false)

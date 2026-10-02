@@ -67,6 +67,7 @@ model User {
   timeEntriesEntered  TimeEntry[]            @relation("TimeEntryEnteredBy")
   timeEntriesReviewed TimeEntry[]            @relation("TimeEntryReviewedBy")
   stationsCreated     StationDevice[]
+  tetrisScore         TetrisScore?
 }
 
 model Department {
@@ -277,4 +278,18 @@ model StationDevice {
 
   createdBy   User        @relation(fields: [createdById], references: [id])
   timeEntries TimeEntry[]
+}
+
+// Tetris (just for fun): one row per person with their best game.
+model TetrisScore {
+  userId      String   @id
+  score       Int // best score
+  lines       Int // lines cleared in that game
+  level       Int // level reached in that game
+  achievedAt  DateTime
+  gamesPlayed Int      @default(0)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([score])
 }

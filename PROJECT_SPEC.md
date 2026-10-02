@@ -181,6 +181,16 @@ model Notification {
   @@index([userId, createdAt])
 }
 
+// ✅ Tetris: one row per person, their best game
+model TetrisScore {
+  userId      String   @id
+  score       Int                                // best score
+  lines       Int                                // lines in that game
+  level       Int
+  achievedAt  DateTime
+  gamesPlayed Int      @default(0)
+}
+
 // 🔜 later
 model ShiftSwapRequest { id, requesterId, slotId, targetUserId?, status, createdAt }
 ```
@@ -228,6 +238,7 @@ Every page works on **phone** (single column, bottom tab bar) and **desktop** (s
 **Everyone**
 
 19. **Notifications** ✅ — bell with unread count in the top bar (every page); list at `/notifications`, opening it marks all read; each item links to the week
+20. **Tetris** ✅ — `/tetris`, for everyone: a Tetris game (hold, next pieces, ghost, levels every 10 lines, guideline scoring; keyboard on desktop, on-screen buttons on phones). Each person's **best score** is kept (plus lines, level and games played) and a **leaderboard** of everyone's best scores is shown next to the game. Scores are submitted by the client at game over (not cheat-proof — it's for fun).
 
 ## Build order
 1. ✅ Scaffolding, database, seed, auth, worker management, schedule editor.

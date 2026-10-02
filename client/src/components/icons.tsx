@@ -95,6 +95,14 @@ export function StopwatchIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function GameIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M4 4h5v5H4zM9 4h5v5H9zM14 4h5v5h-5zM9 9h5v5H9zM6 15h5v5H6zM11 15h5v5h-5z" />
+    </Icon>
+  )
+}
+
 export function MoreIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>

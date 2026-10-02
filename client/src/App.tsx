@@ -14,6 +14,7 @@ import { NotificationsPage } from './pages/NotificationsPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { SchedulePage } from './pages/SchedulePage'
 import { StationPage } from './pages/StationPage'
+import { TetrisPage } from './pages/TetrisPage'
 import { WorkersPage } from './pages/WorkersPage'
 
 function App() {
@@ -49,6 +50,7 @@ function App() {
           path="/settings"
           element={user.isRestaurantManager ? <SettingsPage /> : <Navigate to="/" replace />}
         />
+        <Route path="/tetris" element={<TetrisPage />} />
         <Route path="/more" element={<MorePage />} />
         <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/profile" element={<ProfilePage />} />
