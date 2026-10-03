@@ -280,6 +280,7 @@ Every page works on **phone** (single column, bottom tab bar) and **desktop** (s
 - User management, departments, schedules, shifts and slots routes: see CLAUDE.md "Folder structure".
 
 ## Deployment & PWA
+- **Live:** https://shift-organizer-sjho.onrender.com
 - **Hosting:** one Render web service (free plan, region Ohio) — Express serves the API under `/api` **and** the built client (SPA fallback to `index.html`), so the app has one origin (no CORS). Blueprint: `render.yaml` (build both, `prisma migrate deploy` on start, health check `/api/health`). Free plan sleeps after 15 idle minutes (next visit waits ~30–60 s) — upgrade to an always-on plan for real time-clock use.
 - **Database:** the existing Neon project in AWS US East 2 (Ohio); the server runs in the same region, so the many DB round trips per request stay short and only one browser↔server trip crosses the ocean. The live app uses this database (demo data included). Moving both to Frankfurt was considered and skipped.
 - **Hardening:** security headers (helmet, CSP `'self'`), login rate limit, `trust proxy` behind Render.
