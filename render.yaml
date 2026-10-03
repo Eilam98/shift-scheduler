@@ -5,7 +5,7 @@ services:
   - type: web
     name: shift-organizer
     runtime: node
-    region: frankfurt # next to the Neon database (AWS Europe / Frankfurt)
+    region: ohio # next to the Neon database (AWS US East 2 / Ohio)
     plan: free # sleeps after 15 idle minutes; "starter" is always on
     # devDependencies (TypeScript, Prisma CLI, Vite) are needed to build.
     buildCommand: >-
