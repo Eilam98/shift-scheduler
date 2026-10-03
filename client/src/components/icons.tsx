@@ -111,6 +111,16 @@ export function ReceiptIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function MoneyIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <rect x="2.5" y="6" width="19" height="12" rx="2" />
+      <circle cx="12" cy="12" r="2.5" />
+      <path d="M6 9.5v5M18 9.5v5" />
+    </Icon>
+  )
+}
+
 export function MoreIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>

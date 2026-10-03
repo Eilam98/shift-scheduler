@@ -55,3 +55,30 @@ export function formatWeekRange(weekStart: string, locale: string): string {
     timeZone: 'UTC',
   }).formatRange(fromDateString(weekStart), fromDateString(addDays(weekStart, 6)))
 }
+
+// Months travel as "YYYY-MM".
+
+/** This month in the user's local calendar, "YYYY-MM". */
+export function currentMonth(): string {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}
+
+export function addMonths(month: string, n: number): string {
+  const [y, m] = month.split('-').map(Number)
+  const date = new Date(Date.UTC(y, m - 1 + n, 1))
+  return toDateString(date).slice(0, 7)
+}
+
+export const isMonth = (value: string | null): value is string => !!value && /^\d{4}-(0[1-9]|1[0-2])$/.test(value)
+
+/** "October 2026" / "אוקטובר 2026" */
+export function formatMonth(month: string, locale: string): string {
+  return new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(fromDateString(`${month}-01`))
+}
+
+/** The Sunday on or before a date — for linking a day to its week. */
+export function weekStartOf(value: string): string {
+  const day = fromDateString(value).getUTCDay()
+  return addDays(value, -((day - WEEK_START_DAY + 7) % 7))
+}

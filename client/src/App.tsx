@@ -7,6 +7,8 @@ import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
 import { AttendancePage } from './pages/AttendancePage'
 import { AvailabilityPage } from './pages/AvailabilityPage'
+import { EarningsPage } from './pages/EarningsPage'
+import { PayrollPage } from './pages/PayrollPage'
 import { MorePage } from './pages/MorePage'
 import { MyShiftsPage } from './pages/MyShiftsPage'
 import { SettingsPage } from './pages/SettingsPage'
@@ -54,6 +56,11 @@ function App() {
         <Route
           path="/shift-report"
           element={user.fillsReports ? <ShiftReportPage /> : <Navigate to="/" replace />}
+        />
+        <Route path="/earnings" element={<EarningsPage />} />
+        <Route
+          path="/payroll"
+          element={user.isRestaurantManager ? <PayrollPage /> : <Navigate to="/" replace />}
         />
         <Route path="/tetris" element={<TetrisPage />} />
         <Route path="/more" element={<MorePage />} />

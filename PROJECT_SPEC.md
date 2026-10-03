@@ -23,6 +23,9 @@ Rules:
 - **Tip pool:** one pool **per shift, shared by all tip-based workers** in that shift (waiters + bartenders together), split by hours worked.
 - **Top-up is checked per month, per worker, per department:** if (tip shares for that department's hours) < (hours × department minimum), the restaurant pays the difference. Example: 100 h as a waiter, 6,000 NIS tips, minimum 70 → 7,000 − 6,000 = **1,000 NIS top-up**.
 - Money is stored as **integer agorot** (70 NIS = `7000`) — never floats.
+- **Pay calculation** (one shared calculation, `server/src/lib/payroll.ts`): a month = clock-in dates in Israel time. FIXED: each entry's minutes × the hourly rate in effect on that day (rounded per entry). TIPS: each entry's tip share from its shift's pool; top-up per worker per department = max(0, Σ minutes × minimum in effect − tip shares). Bonus = the worker's current `hourlyBonus` for that department × that department's minutes (no history yet). Total = fixed pay + tips + top-up + bonus.
+- **Payroll warnings:** unapproved (flagged) clock-ins are **counted** but listed; a department without a rate is listed (paid ₪0 until set); entries with **no department** or a **missing clock-out** (open > 16 h) are **not paid** until fixed. An entry still open within 16 h is just "still clocked in".
+- **Not included (yet):** overtime and Shabbat/holiday premiums, and locking a paid month. The payroll report says so.
 
 ## Time tracking
 - **FIXED-pay departments** clock in/out on a **restaurant device only** (the "time clock station"), identified by a personal **PIN**. Workers' own phones cannot clock in.
@@ -209,7 +212,7 @@ Every page works on **phone** (single column, bottom tab bar) and **desktop** (s
 4. **My shifts** ✅ — upcoming and past 30 days, department, times (posted weeks only)
 5. **Team schedule** ✅ — any department's *posted* week, all names, week navigation (same `/schedule` page as the editor, read-only)
 6. **Availability** ✅ — a week's 14 shifts, can / prefer not / can't + note; locked after the deadline. Managers get a **הגשות העובדים** toggle on the same page (page 11)
-8. **My hours & earnings** — monthly: hours per department, fixed pay, tip shares, top-up, bonus, total
+8. **My hours & earnings** ✅ — `/earnings`: monthly per department: hours, fixed pay, tip shares, top-up, bonus, total, plus each day; the current month is marked as an estimate
 9. **Profile** ✅ — language, change password, my details
 
 **Department managers** (restaurant manager: all departments)
@@ -229,9 +232,9 @@ Every page works on **phone** (single column, bottom tab bar) and **desktop** (s
 **Restaurant manager only**
 
 14. **Workers** ✅ ("works in" / "manages" ✅, PIN ✅; + per-department hourly bonus, edit details, deactivate, reset password)
-15. **Departments & pay** — pay type, rate/minimum, effective date
+15. **Departments & pay** ✅ — tab of `/payroll`: per department the current pay type and rate/minimum + history; "new rate from date" (same date replaces). Per-worker hourly bonus per department is set on the Workers page
 16. **Restaurant settings** ✅ — availability deadline, default language, default shift times (new weeks only), time clock stations (activate this device / revoke)
-17. **Payroll report** — month × all workers: hours, pay, tips, top-up, bonus; export CSV/Excel
+17. **Payroll report** ✅ — `/payroll`: month × all workers: hours, fixed pay, tips, top-up, bonus, total, totals row, warnings with links to fix them, per-worker days; export CSV (UTF-8 with BOM so Excel shows Hebrew)
 
 **Later**
 
@@ -250,7 +253,7 @@ Every page works on **phone** (single column, bottom tab bar) and **desktop** (s
 5. ✅ **Availability** with deadline (+ Restaurant settings page).
 6. ✅ **Time clock station + Attendance** (PIN, flagged entries).
 7. ✅ **End-of-shift report** (manual hours + tip pool).
-8. **Departments & pay, My hours & earnings, Payroll report.**
+8. ✅ **Departments & pay, My hours & earnings, Payroll report.**
 9. **PWA + deployment** (installable on iPhone, hosted server/client; Web Push for the existing notifications).
 10. Later: Request box.
 

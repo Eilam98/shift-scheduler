@@ -4,6 +4,7 @@ import { DepartmentPicker } from '../components/DepartmentPicker'
 import { Button, Card, ErrorMessage, Screen } from '../components/ui'
 import { useI18n } from '../i18n/i18nContext'
 import { api } from '../lib/api'
+import { agorotToInput, formatShekels, parseShekels } from '../lib/money'
 import { roleLabel } from '../lib/roles'
 import type { Department, DepartmentRolesInput, UserListItem } from '../types'
 
@@ -151,7 +152,7 @@ function WorkerCard({
   onEdit?: () => void
   onPinCreated?: () => void
 }) {
-  const { t, departmentName } = useI18n()
+  const { t, locale, departmentName } = useI18n()
   return (
     <Card>
       <div className="flex items-start justify-between gap-3">
@@ -179,6 +180,8 @@ function WorkerCard({
               className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700"
             >
               {departmentName(m.departmentName)}
+              {user.bonuses[m.departmentId] > 0 &&
+                ` · ${t('workers.bonusChip', { amount: formatShekels(user.bonuses[m.departmentId], locale) })}`}
             </span>
           ))}
           {user.managedDepartments.map((m) => (
@@ -281,21 +284,31 @@ function EditDepartmentsCard({
   onSaved: (user: UserListItem) => void
   onCancel: () => void
 }) {
-  const { t, errorMessage } = useI18n()
+  const { t, errorMessage, departmentName } = useI18n()
   const [roles, setRoles] = useState<DepartmentRolesInput>(() => ({
     memberDepartmentIds: user.memberships.map((m) => m.departmentId),
     managedDepartmentIds: user.managedDepartments.map((m) => m.departmentId),
   }))
+  // Hourly bonus per department they work in, typed in ₪ (stored as agorot).
+  const [bonusInputs, setBonusInputs] = useState<Record<string, string>>(() =>
+    Object.fromEntries(Object.entries(user.bonuses).map(([id, agorot]) => [id, agorotToInput(agorot)]))
+  )
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
   async function save() {
+    const bonuses: Record<string, number> = {}
+    for (const id of roles.memberDepartmentIds) {
+      const agorot = parseShekels(bonusInputs[id] ?? '')
+      if (agorot === null) return setError(t('report.badAmount'))
+      bonuses[id] = agorot
+    }
     setError(null)
     setSaving(true)
     try {
       const updated = await api<UserListItem>(`/users/${user.id}/departments`, {
         method: 'PATCH',
-        body: roles,
+        body: { ...roles, bonuses },
       })
       onSaved(updated)
     } catch (err) {
@@ -314,6 +327,30 @@ function EditDepartmentsCard({
         onChange={setRoles}
         otherManagers={otherManagers}
       />
+      {roles.memberDepartmentIds.length > 0 && (
+        <fieldset className="mt-4 space-y-2">
+          <legend className="text-sm font-medium text-slate-700">{t('workers.bonusTitle')}</legend>
+          <p className="text-xs text-slate-500">{t('workers.bonusHint')}</p>
+          {departments
+            .filter((d) => roles.memberDepartmentIds.includes(d.id))
+            .map((d) => (
+              <label key={d.id} className="flex items-center justify-between gap-3 text-sm">
+                <span className="text-slate-800">{departmentName(d.name)}</span>
+                <span className="flex items-center gap-1" dir="ltr">
+                  <span className="text-slate-500">₪</span>
+                  <input
+                    inputMode="decimal"
+                    placeholder="0"
+                    className="w-24 rounded-lg border border-slate-300 px-2 py-1.5 text-base"
+                    value={bonusInputs[d.id] ?? ''}
+                    onChange={(e) => setBonusInputs((b) => ({ ...b, [d.id]: e.target.value }))}
+                  />
+                  <span className="text-xs text-slate-500">{t('workers.perHourShort')}</span>
+                </span>
+              </label>
+            ))}
+        </fieldset>
+      )}
       {error && (
         <div className="mt-3">
           <ErrorMessage>{error}</ErrorMessage>

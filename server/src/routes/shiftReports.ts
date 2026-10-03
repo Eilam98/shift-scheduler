@@ -39,7 +39,7 @@ async function loadReport(shift: Shift) {
     prisma.timeEntry.findMany({
       where: { shiftId: shift.id, source: "REPORT" },
       include: { user: { select: { name: true } } },
-      orderBy: { createdAt: "asc" },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }], // same order as lib/payroll.ts (leftover agorot)
     }),
     prisma.department.findMany({ where: { id: { in: tipsIds } }, orderBy: { name: "asc" } }),
     prisma.user.findMany({

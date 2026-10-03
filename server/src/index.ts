@@ -15,6 +15,8 @@ import stationsRoutes from "./routes/stations";
 import attendanceRoutes from "./routes/attendance";
 import tetrisRoutes from "./routes/tetris";
 import shiftReportRoutes from "./routes/shiftReports";
+import payRateRoutes from "./routes/payRates";
+import payrollRoutes from "./routes/payroll";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -40,6 +42,8 @@ app.use("/api/stations", stationsRoutes); // managing devices (restaurant manage
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/tetris", tetrisRoutes);
 app.use("/api/shift-reports", shiftReportRoutes);
+app.use("/api/pay-rates", payRateRoutes);
+app.use("/api/payroll", payrollRoutes);
 
 // Express 5 forwards errors thrown in async handlers here. Log the details
 // server-side and return a generic JSON 500 instead of Express's HTML page.

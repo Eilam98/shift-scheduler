@@ -30,6 +30,7 @@ export interface UserListItem extends DepartmentRoles {
   isActive: boolean
   hasPin: boolean // has a time clock PIN
   canClockIn: boolean // works in an hourly department
+  bonuses: Record<string, number> // departmentId → hourly bonus (agorot)
 }
 
 export type ShiftLabel = 'MORNING' | 'EVENING'
@@ -217,4 +218,73 @@ export interface RecentReportShift {
   ended: boolean
   hasReport: boolean
   totalAmount: number | null
+}
+
+// Departments & pay (server/src/routes/payRates.ts)
+export type PayType = 'FIXED' | 'TIPS'
+export interface PayRate {
+  id: string
+  effectiveFrom: string // "YYYY-MM-DD"
+  payType: PayType
+  hourlyRate: number | null // agorot / hour (FIXED)
+  minimumHourlyRate: number | null // agorot / hour (TIPS)
+}
+export interface DepartmentRates {
+  id: string
+  name: string
+  rates: PayRate[] // newest first
+}
+
+// Payroll (server/src/lib/payroll.ts)
+export interface PayrollDay {
+  entryId: string
+  date: string
+  label: ShiftLabel | null
+  departmentId: string
+  minutes: number
+  payType: PayType
+  amount: number
+}
+export interface PayrollDepartment {
+  departmentId: string
+  departmentName: string
+  payType: PayType
+  minutes: number
+  fixedPay: number
+  tipShares: number
+  minimumOwed: number
+  topUp: number
+  bonusRate: number
+  bonus: number
+  total: number
+}
+export interface PayrollWorker {
+  userId: string
+  name: string
+  departments: PayrollDepartment[]
+  minutes: number
+  fixedPay: number
+  tipShares: number
+  topUp: number
+  bonus: number
+  total: number
+  days: PayrollDay[]
+}
+export type PayrollWarning =
+  | { kind: 'UNAPPROVED' | 'NO_DEPARTMENT' | 'MISSING_CLOCK_OUT'; entryId: string; userId: string; name: string; date: string; departmentName: string | null }
+  | { kind: 'NO_RATE'; departmentId: string; departmentName: string }
+export interface Payroll {
+  month: string
+  timeZone: string
+  isCurrentMonth: boolean
+  workers: PayrollWorker[]
+  totals: { minutes: number; fixedPay: number; tipShares: number; topUp: number; bonus: number; total: number }
+  warnings: PayrollWarning[]
+}
+export interface MyEarnings {
+  month: string
+  timeZone: string
+  isCurrentMonth: boolean
+  me: PayrollWorker | null
+  warnings: PayrollWarning[]
 }

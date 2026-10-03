@@ -17,6 +17,8 @@ router.use(authenticate, requireRestaurantManager);
 const departmentRolesSchema = z.object({
   memberDepartmentIds: z.array(z.string().min(1)).default([]),
   managedDepartmentIds: z.array(z.string().min(1)).default([]),
+  // Hourly bonus per department the user works in, agorot / hour (always added on top).
+  bonuses: z.record(z.number().int().min(0).max(1_000_000)).optional(),
 });
 
 type DepartmentRoles = z.infer<typeof departmentRolesSchema>;
@@ -76,6 +78,7 @@ function toUserListItem(
     isRestaurantManager: user.isRestaurantManager,
     isActive: user.isActive,
     hasPin: user.pinHash !== null,
+    bonuses: Object.fromEntries(user.memberships.map((m) => [m.departmentId, m.hourlyBonus])),
     canClockIn: user.memberships.some((m) => hourly.has(m.departmentId)),
     ...toDepartmentRoles(user),
   };
@@ -150,7 +153,7 @@ router.patch("/:id/departments", async (req, res) => {
     return res.status(400).json({ error: "memberDepartmentIds and managedDepartmentIds must be arrays" });
   }
   const { id } = req.params;
-  const { memberDepartmentIds, managedDepartmentIds } = parsed.data;
+  const { memberDepartmentIds, managedDepartmentIds, bonuses } = parsed.data;
 
   const existing = await prisma.user.findUnique({ where: { id } });
   if (!existing) {
@@ -176,6 +179,14 @@ router.patch("/:id/departments", async (req, res) => {
       data: memberDepartmentIds.map((departmentId) => ({ userId: id, departmentId })),
       skipDuplicates: true,
     });
+
+    for (const [departmentId, hourlyBonus] of Object.entries(bonuses ?? {})) {
+      if (!memberDepartmentIds.includes(departmentId)) continue; // only where they work
+      await tx.departmentMembership.update({
+        where: { userId_departmentId: { userId: id, departmentId } },
+        data: { hourlyBonus },
+      });
+    }
 
     await tx.departmentManager.deleteMany({
       where: { userId: id, departmentId: { notIn: managedDepartmentIds } },
