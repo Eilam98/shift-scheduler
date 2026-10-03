@@ -19,7 +19,10 @@ export async function isWeekPosted(
   return week?.status === "POSTED";
 }
 
-/** A department's week was just posted: tell everyone who has a shift in it. */
+/**
+ * A department's week was just posted: tell everyone who has a shift in it.
+ * Returns the rows created (to push to phones once the transaction commits).
+ */
 export async function notifyWeekPosted(
   tx: Tx,
   { scheduleId, departmentId, actorId }: { scheduleId: string; departmentId: string; actorId: string }
@@ -30,12 +33,12 @@ export async function notifyWeekPosted(
     distinct: ["userId"],
   });
 
-  await tx.notification.createMany({
-    data: slots
-      .map((s) => s.userId!)
-      .filter((userId) => userId !== actorId)
-      .map((userId) => ({ userId, type: "SCHEDULE_POSTED" as const, departmentId, scheduleId })),
-  });
+  const rows = slots
+    .map((s) => s.userId!)
+    .filter((userId) => userId !== actorId)
+    .map((userId) => ({ userId, type: "SCHEDULE_POSTED" as const, departmentId, scheduleId }));
+  await tx.notification.createMany({ data: rows });
+  return rows;
 }
 
 /**

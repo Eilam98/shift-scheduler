@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma";
 import { parseWeekStart, toDateString } from "../lib/dates";
 import { ensureWeek } from "../lib/schedules";
 import { notifyWeekPosted } from "../lib/notifications";
+import { pushInBackground } from "../lib/push";
 import {
   authenticate,
   canManageDepartment,
@@ -155,16 +156,16 @@ router.patch(
       return res.status(200).json({ status: current.status, postedAt: current.postedAt });
     }
 
-    const updated = await prisma.$transaction(async (tx) => {
+    const { week: updated, notified } = await prisma.$transaction(async (tx) => {
       const week = await tx.departmentSchedule.update({
         where: { id: current.id },
         data: { status, postedAt: status === "POSTED" ? new Date() : null },
       });
-      if (status === "POSTED") {
-        await notifyWeekPosted(tx, { scheduleId: schedule.id, departmentId, actorId: req.user!.id });
-      }
-      return week;
+      const notified =
+        status === "POSTED" ? await notifyWeekPosted(tx, { scheduleId: schedule.id, departmentId, actorId: req.user!.id }) : [];
+      return { week, notified };
     });
+    pushInBackground(notified); // phones, after the commit
 
     return res.status(200).json({ status: updated.status, postedAt: updated.postedAt });
   }

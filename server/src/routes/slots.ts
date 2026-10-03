@@ -2,6 +2,7 @@ import { NextFunction, Request, Response, Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { assignmentNotifications, isWeekPosted } from "../lib/notifications";
+import { pushInBackground } from "../lib/push";
 import { authenticate, requireDepartmentManager } from "../middleware/auth";
 
 const router = Router();
@@ -83,6 +84,7 @@ router.patch("/:id", ...canEditSlot, async (req: Request, res: Response) => {
     }),
     prisma.notification.createMany({ data: notifications }),
   ]);
+  pushInBackground(notifications);
 
   return res.status(200).json({ id: updated.id, user: updated.user });
 });
@@ -98,6 +100,7 @@ router.delete("/:id", ...canEditSlot, async (req: Request, res: Response) => {
     prisma.shiftSlot.delete({ where: { id: slot.id } }),
     prisma.notification.createMany({ data: notifications }),
   ]);
+  pushInBackground(notifications);
   return res.status(204).end();
 });
 

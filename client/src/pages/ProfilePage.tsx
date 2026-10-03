@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useLocation } from 'react-router'
 import { useAuth } from '../auth/authContext'
 import { ChevronEndIcon } from '../components/icons'
+import { PushToggle } from '../components/PushToggle'
 import { Button, Card, ErrorMessage, Screen } from '../components/ui'
 import { useI18n } from '../i18n/i18nContext'
 import { roleLabel } from '../lib/roles'
@@ -82,6 +83,10 @@ export function ProfilePage() {
               <ErrorMessage>{error}</ErrorMessage>
             </div>
           )}
+        </Card>
+
+        <Card>
+          <PushToggle />
         </Card>
 
         <Link

@@ -254,7 +254,7 @@ Every page works on **phone** (single column, bottom tab bar) and **desktop** (s
 6. ✅ **Time clock station + Attendance** (PIN, flagged entries).
 7. ✅ **End-of-shift report** (manual hours + tip pool).
 8. ✅ **Departments & pay, My hours & earnings, Payroll report.**
-9. **PWA + deployment** (installable on iPhone, hosted server/client; Web Push for the existing notifications).
+9. ✅ **PWA + deployment** (installable on iPhone, hosted server/client; Web Push for the existing notifications).
 10. Later: Request box.
 
 ## Auth API (built)
@@ -278,6 +278,25 @@ Every page works on **phone** (single column, bottom tab bar) and **desktop** (s
 - `user` shape: `{ id, name, email, isRestaurantManager, requiresPasswordChange, language, memberships: [{ departmentId, departmentName }], managedDepartments: [{ departmentId, departmentName }] }`.
 - Login of a deactivated user (`isActive: false`) → 403 (checked after the password); their existing tokens get 401.
 - User management, departments, schedules, shifts and slots routes: see CLAUDE.md "Folder structure".
+
+## Deployment & PWA
+- **Hosting:** one Render web service (free plan, region Frankfurt) — Express serves the API under `/api` **and** the built client (SPA fallback to `index.html`), so the app has one origin (no CORS). Blueprint: `render.yaml` (build both, `prisma migrate deploy` on start, health check `/api/health`). Free plan sleeps after 15 idle minutes (next visit waits ~30–60 s) — upgrade to an always-on plan for real time-clock use.
+- **Database:** Neon project in AWS Europe (Frankfurt), next to the server (moved from US East; data copied with ids and timestamps). The live app uses this database (demo data included).
+- **Hardening:** security headers (helmet, CSP `'self'`), login rate limit, `trust proxy` behind Render.
+- **PWA:** web app manifest (Hebrew name, RTL, standalone), icon set, service worker that precaches the app shell (API calls always go to the network) and shows a "new version — reload" prompt. iPhone: Safari → Share → Add to Home Screen.
+- **Push notifications (Web Push, VAPID):** the existing notification types are also pushed to each subscribed device, text built on the server in the recipient's language; tapping opens the week. Each person turns it on in Profile (with a test button). iPhone: iOS 16.4+ and only from the Home-Screen app. Subscriptions that the push service reports gone are deleted.
+
+```prisma
+// ✅ one row per subscribed device/browser
+model PushSubscription {
+  id         String   @id @default(cuid())
+  userId     String
+  endpoint   String   @unique
+  p256dh     String
+  auth       String
+  createdAt  DateTime @default(now())
+}
+```
 
 ## Known simplifications (worth mentioning as "what I'd improve" in an interview)
 - `startTime`/`endTime` stored as `"HH:mm"` strings — fine for fixed morning/evening shifts; would move to real time arithmetic for overlap detection.

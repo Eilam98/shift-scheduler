@@ -5,6 +5,7 @@ import './index.css'
 import App from './App.tsx'
 import { AuthProvider } from './auth/AuthProvider.tsx'
 import { I18nProvider } from './i18n/I18nProvider.tsx'
+import { UpdatePrompt } from './components/UpdatePrompt.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -12,6 +13,7 @@ createRoot(document.getElementById('root')!).render(
       <AuthProvider>
         <I18nProvider>
           <App />
+          <UpdatePrompt />
         </I18nProvider>
       </AuthProvider>
     </BrowserRouter>

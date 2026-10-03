@@ -7,6 +7,21 @@ import type { Language } from '../types'
 
 const he = {
   'app.name': 'מסדר משמרות',
+  'update.available': 'גרסה חדשה של האפליקציה זמינה.',
+  'update.reload': 'רענון',
+  'update.later': 'אחר כך',
+  'push.title': 'התראות לטלפון',
+  'push.onHint': 'תקבלו התראה כשמתפרסם סידור או כשמשבצים/מסירים אתכם ממשמרת.',
+  'push.offHint': 'קבלת התראות גם כשהאפליקציה סגורה (במכשיר הזה).',
+  'push.unsupported': 'הדפדפן הזה לא תומך בהתראות. נסו Chrome, Edge או Firefox.',
+  'push.iosNeedsInstall': 'באייפון ההתראות עובדות רק מהאפליקציה שעל מסך הבית: ב־Safari לחצו על שיתוף ← "הוספה למסך הבית", פתחו משם והפעילו כאן.',
+  'push.serverOff': 'השרת עדיין לא הוגדר לשליחת התראות.',
+  'push.blocked': 'ההתראות חסומות לאתר הזה. אפשר להפעיל אותן בהגדרות הדפדפן/הטלפון.',
+  'push.failed': 'לא הצלחנו להפעיל התראות במכשיר הזה.',
+  'push.sendTest': 'שליחת התראת בדיקה',
+  'push.testTitle': 'בדיקה ✓',
+  'push.testBody': 'ההתראות פועלות במכשיר הזה.',
+  'push.testSent': 'נשלחה התראת בדיקה.',
   'common.loading': 'טוען…',
   'common.cancel': 'ביטול',
   'common.save': 'שמירה',
@@ -375,12 +390,28 @@ const he = {
   'error.SHIFT_TOO_LONG': 'שורה לא יכולה להיות ארוכה מ־16 שעות',
   'error.INVALID_RATE': 'תעריף לא תקין — למחלקה שעתית חובה תעריף לשעה',
   'error.LAST_RATE': 'לכל מחלקה חייב להישאר לפחות תעריף אחד',
+  'error.TOO_MANY_ATTEMPTS': 'יותר מדי ניסיונות כניסה — נסו שוב בעוד כמה דקות',
 } satisfies Record<string, string>
 
 export type MessageKey = keyof typeof he
 
 const en: Record<MessageKey, string> = {
   'app.name': 'Shift Organizer',
+  'update.available': 'A new version of the app is available.',
+  'update.reload': 'Reload',
+  'update.later': 'Later',
+  'push.title': 'Phone notifications',
+  'push.onHint': "You'll be notified when a schedule is posted or you're added to / removed from a shift.",
+  'push.offHint': 'Get notifications even when the app is closed (on this device).',
+  'push.unsupported': "This browser doesn't support notifications. Try Chrome, Edge or Firefox.",
+  'push.iosNeedsInstall': 'On iPhone, notifications only work from the Home-Screen app: in Safari tap Share → "Add to Home Screen", open it from there and turn this on.',
+  'push.serverOff': "The server isn't set up to send notifications yet.",
+  'push.blocked': 'Notifications are blocked for this site. You can allow them in the browser/phone settings.',
+  'push.failed': "Couldn't turn on notifications on this device.",
+  'push.sendTest': 'Send a test notification',
+  'push.testTitle': 'Test ✓',
+  'push.testBody': 'Notifications work on this device.',
+  'push.testSent': 'Test notification sent.',
   'common.loading': 'Loading…',
   'common.cancel': 'Cancel',
   'common.save': 'Save',
@@ -750,6 +781,7 @@ const en: Record<MessageKey, string> = {
   'error.SHIFT_TOO_LONG': "A row can't be longer than 16 hours",
   'error.INVALID_RATE': 'Invalid rate — an hourly department needs an hourly rate',
   'error.LAST_RATE': 'A department needs at least one rate',
+  'error.TOO_MANY_ATTEMPTS': 'Too many login attempts — try again in a few minutes',
 }
 
 export const messages: Record<Language, Record<MessageKey, string>> = { HE: he, EN: en }

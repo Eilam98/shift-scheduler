@@ -1,0 +1,37 @@
+# Render blueprint: one web service that runs the Express API and serves the
+# built React app (server/src/index.ts serves client/dist). Render reads this
+# file when you create a "Blueprint" from the GitHub repo.
+services:
+  - type: web
+    name: shift-organizer
+    runtime: node
+    region: frankfurt # next to the Neon database (AWS Europe / Frankfurt)
+    plan: free # sleeps after 15 idle minutes; "starter" is always on
+    # devDependencies (TypeScript, Prisma CLI, Vite) are needed to build.
+    buildCommand: >-
+      cd server && npm ci --include=dev && npx prisma generate && npm run build &&
+      cd ../client && npm ci --include=dev && npm run build
+    # Apply any new database migrations, then start the server.
+    startCommand: cd server && npx prisma migrate deploy && node dist/index.js
+    healthCheckPath: /api/health
+    autoDeploy: true # every push to main deploys
+    envVars:
+      - key: NODE_VERSION
+        value: 22.14.0
+      - key: NODE_ENV
+        value: production
+      # Secrets: Render asks for these when the blueprint is created (never committed).
+      - key: DATABASE_URL # Neon pooled connection string (host contains -pooler)
+        sync: false
+      - key: DIRECT_URL # same without -pooler (used by prisma migrate deploy)
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: PIN_SECRET
+        sync: false
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        sync: false

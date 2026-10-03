@@ -73,6 +73,7 @@ model User {
   stationsCreated     StationDevice[]
   tetrisScore         TetrisScore?
   tipPoolsEntered     TipPool[]
+  pushSubscriptions   PushSubscription[]
 }
 
 model Department {
@@ -312,4 +313,19 @@ model TipPool {
 
   shift     Shift @relation(fields: [shiftId], references: [id])
   enteredBy User  @relation(fields: [enteredById], references: [id])
+}
+
+// One subscribed device/browser for phone push notifications (Web Push).
+// endpoint + keys come from the browser's PushManager.subscribe().
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
 }
