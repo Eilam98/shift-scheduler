@@ -68,14 +68,20 @@ export function SchedulePage() {
     if (!departmentId) return
     let cancelled = false
     ;(async (): Promise<Loaded> => {
-      try {
-        const week = await api<DepartmentWeek>(`/schedules/${weekStart}/departments/${departmentId}`)
-        if (!week.canEdit) return { kind: 'ready', week, members: [], availability: [] }
-        // Editors also get everyone's availability for this week, shown next to names.
-        const [{ members }, team] = await Promise.all([
+      // Editors also need the department's workers and their availability. When we
+      // already know this user can edit here, ask for them at the same time as the
+      // week instead of after it (each request is a round trip).
+      const editorData = () =>
+        Promise.all([
           api<{ members: Member[] }>(`/departments/${departmentId}/members`),
           api<TeamAvailability>(`/availability/team?week=${weekStart}&departmentId=${departmentId}`),
         ])
+      const early = canManage ? editorData() : null
+      early?.catch(() => {}) // if the week fails first, don't report this as unhandled
+      try {
+        const week = await api<DepartmentWeek>(`/schedules/${weekStart}/departments/${departmentId}`)
+        if (!week.canEdit) return { kind: 'ready', week, members: [], availability: [] }
+        const [{ members }, team] = await (early ?? editorData())
         return { kind: 'ready', week, members, availability: team.workers }
       } catch (err) {
         if (err instanceof ApiError && err.status === 404) return { kind: 'missing' }
@@ -88,7 +94,7 @@ export function SchedulePage() {
     return () => {
       cancelled = true
     }
-  }, [departmentId, weekStart, key, errorMessage])
+  }, [departmentId, weekStart, key, errorMessage, canManage])
 
   if (!user) return null
 

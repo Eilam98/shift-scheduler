@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
-import { getSettings } from "../lib/settings";
+import { getSettings, invalidateSettings } from "../lib/settings";
 import { authenticate, requireRestaurantManager } from "../middleware/auth";
 
 const router = Router();
@@ -69,6 +69,7 @@ router.patch("/", authenticate, requireRestaurantManager, async (req, res) => {
       prisma.shiftTemplate.upsert({ where: { label }, update: times, create: { label, ...times } })
     ),
   ]);
+  invalidateSettings();
 
   return res.status(200).json(await toSettingsResponse());
 });

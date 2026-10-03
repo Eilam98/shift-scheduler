@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import { cached } from "../lib/cache";
 import { prisma } from "../lib/prisma";
 import { verifyToken } from "../lib/auth";
 
@@ -39,7 +40,11 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: { memberships: true, managedDepartments: true },
+      // Only the ids we need; with relationJoins this is a single SQL query.
+      include: {
+        memberships: { select: { departmentId: true } },
+        managedDepartments: { select: { departmentId: true } },
+      },
     });
 
     // A deactivated user's existing tokens stop working immediately.
@@ -122,11 +127,14 @@ export async function canManageUser(user: AuthenticatedUser, targetUserId: strin
 /** The seeded name of the department whose members are shift managers. */
 export const SHIFT_MANAGERS_DEPARTMENT = "Shift Managers";
 
-/** Is `user` a member of the Shift Managers department? */
+/** Is `user` a member of the Shift Managers department? (Its id is cached — department ids never change.) */
 export async function isShiftManager(user: AuthenticatedUser): Promise<boolean> {
   if (user.memberDepartmentIds.length === 0) return false;
-  const shiftManagers = await prisma.department.findUnique({ where: { name: SHIFT_MANAGERS_DEPARTMENT } });
-  return !!shiftManagers && user.memberDepartmentIds.includes(shiftManagers.id);
+  const shiftManagersId = await cached("shiftManagersDepartmentId", 10 * 60_000, async () => {
+    const department = await prisma.department.findUnique({ where: { name: SHIFT_MANAGERS_DEPARTMENT } });
+    return department?.id ?? null;
+  });
+  return !!shiftManagersId && user.memberDepartmentIds.includes(shiftManagersId);
 }
 
 /**

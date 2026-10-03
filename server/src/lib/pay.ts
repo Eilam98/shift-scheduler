@@ -1,8 +1,11 @@
 import { PayType } from "@prisma/client";
+import { cached, invalidate } from "./cache";
 import { prisma } from "./prisma";
 
-/** Each department's CURRENT pay type, from the rate history (latest effectiveFrom <= now). */
-async function currentPayTypes(now = new Date()): Promise<Map<string, PayType>> {
+const PAY_TYPES_KEY = "payTypes";
+
+/** Each department's pay type at `now`, from the rate history (latest effectiveFrom <= now). */
+async function loadPayTypes(now: Date): Promise<Map<string, PayType>> {
   const rates = await prisma.departmentPayRate.findMany({
     where: { effectiveFrom: { lte: now } },
     orderBy: { effectiveFrom: "desc" },
@@ -14,8 +17,14 @@ async function currentPayTypes(now = new Date()): Promise<Map<string, PayType>> 
   return current;
 }
 
+/** Current pay types are read on most requests: cached for a minute. A past date isn't cached. */
+const payTypesAt = (now?: Date) => (now ? loadPayTypes(now) : cached(PAY_TYPES_KEY, 60_000, () => loadPayTypes(new Date())));
+
+/** Call after changing pay rates (step 8). */
+export const invalidatePayTypes = () => invalidate(PAY_TYPES_KEY);
+
 async function departmentIdsPaid(payType: PayType, now?: Date): Promise<Set<string>> {
-  const current = await currentPayTypes(now);
+  const current = await payTypesAt(now);
   return new Set([...current].filter(([, type]) => type === payType).map(([id]) => id));
 }
 

@@ -49,7 +49,22 @@ router.get("/:weekStart/departments/:departmentId", async (req, res) => {
   }
   const { departmentId } = req.params;
 
-  const schedule = await prisma.schedule.findUnique({
+  // Editors also get which of this department's workers already work a shift
+  // of this week in ANOTHER department (blue in the workers panel; counts
+  // toward their shifts this week). Fetched in parallel with the week.
+  const canEdit = canManageDepartment(req.user!, departmentId);
+  const elsewhereQuery = canEdit
+    ? prisma.shiftSlot.findMany({
+        where: {
+          shift: { schedule: { weekStartDate: weekStart } },
+          departmentId: { not: departmentId },
+          user: { memberships: { some: { departmentId } } },
+        },
+        include: { department: { select: { name: true } } },
+      })
+    : Promise.resolve([]);
+
+  const scheduleQuery = prisma.schedule.findUnique({
     where: { weekStartDate: weekStart },
     include: {
       departmentSchedules: { where: { departmentId }, include: { department: true } },
@@ -66,31 +81,17 @@ router.get("/:weekStart/departments/:departmentId", async (req, res) => {
     },
   });
 
+  const [schedule, elsewhere] = await Promise.all([scheduleQuery, elsewhereQuery]);
   const departmentSchedule = schedule?.departmentSchedules[0];
   if (!schedule || !departmentSchedule) {
     return res.status(404).json({ error: "No schedule for this week yet" });
   }
 
-  const canEdit = canManageDepartment(req.user!, departmentId);
   if (!canEdit && departmentSchedule.status !== "POSTED" && !(await canViewDrafts(req.user!))) {
     return res
       .status(403)
       .json({ error: "This schedule hasn't been posted yet", code: "SCHEDULE_NOT_POSTED" });
   }
-
-  // Editors: which of this department's workers already work a shift of this
-  // week in ANOTHER department (blue in the workers panel; counts toward their
-  // shifts this week).
-  const elsewhere = canEdit
-    ? await prisma.shiftSlot.findMany({
-        where: {
-          shift: { scheduleId: schedule.id },
-          departmentId: { not: departmentId },
-          user: { memberships: { some: { departmentId } } },
-        },
-        include: { department: { select: { name: true } } },
-      })
-    : [];
 
   return res.status(200).json({
     schedule: toScheduleResponse(schedule),
