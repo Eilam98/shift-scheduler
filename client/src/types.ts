@@ -78,6 +78,7 @@ export interface User extends DepartmentRoles {
   requiresPasswordChange: boolean
   language: Language | null // null = restaurant default
   managesHourly: boolean // sees the Attendance page
+  fillsReports: boolean // fills in end-of-shift reports (shift managers + restaurant manager)
 }
 
 export type Language = 'HE' | 'EN'
@@ -187,4 +188,33 @@ export interface AttendanceWeek {
   departments: Department[]
   workers: { id: string; name: string; departmentIds: string[] }[]
   entries: AttendanceEntry[]
+}
+
+// GET/PUT /api/shift-reports (server/src/routes/shiftReports.ts)
+export interface ShiftReportRow {
+  userId: string
+  name: string
+  departmentId: string
+  start: string // "HH:mm"
+  end: string
+  minutes: number
+  share: number // agorot
+}
+
+export interface ShiftReport {
+  timeZone: string
+  shift: { id: string; date: string; label: ShiftLabel; startTime: string; endTime: string }
+  report: { totalAmount: number; enteredBy: string; updatedAt: string } | null
+  prefilled: boolean // not saved yet: rows come from the schedule
+  rows: ShiftReportRow[]
+  departments: Department[] // tips departments
+  candidates: { id: string; name: string; departmentIds: string[] }[]
+}
+
+export interface RecentReportShift {
+  date: string
+  label: ShiftLabel
+  ended: boolean
+  hasReport: boolean
+  totalAmount: number | null
 }

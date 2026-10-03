@@ -10,6 +10,7 @@ import { AvailabilityPage } from './pages/AvailabilityPage'
 import { MorePage } from './pages/MorePage'
 import { MyShiftsPage } from './pages/MyShiftsPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { ShiftReportPage } from './pages/ShiftReportPage'
 import { NotificationsPage } from './pages/NotificationsPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { SchedulePage } from './pages/SchedulePage'
@@ -49,6 +50,10 @@ function App() {
         <Route
           path="/settings"
           element={user.isRestaurantManager ? <SettingsPage /> : <Navigate to="/" replace />}
+        />
+        <Route
+          path="/shift-report"
+          element={user.fillsReports ? <ShiftReportPage /> : <Navigate to="/" replace />}
         />
         <Route path="/tetris" element={<TetrisPage />} />
         <Route path="/more" element={<MorePage />} />

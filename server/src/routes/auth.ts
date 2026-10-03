@@ -5,7 +5,7 @@ import { prisma } from "../lib/prisma";
 import { comparePassword, hashPassword, isValidPassword, signToken } from "../lib/auth";
 import { departmentRolesInclude, toDepartmentRoles } from "../lib/users";
 import { hourlyDepartmentIds } from "../lib/pay";
-import { authenticate } from "../middleware/auth";
+import { SHIFT_MANAGERS_DEPARTMENT, authenticate } from "../middleware/auth";
 
 const router = Router();
 
@@ -21,6 +21,9 @@ async function toUserResponse(user: Prisma.UserGetPayload<{ include: typeof depa
     ...toDepartmentRoles(user),
     // Sees the Attendance page: restaurant manager, or manages an hourly department.
     managesHourly: user.isRestaurantManager || user.managedDepartments.some((m) => hourly.has(m.departmentId)),
+    // Fills in end-of-shift reports: restaurant manager, or a member of Shift Managers.
+    fillsReports:
+      user.isRestaurantManager || user.memberships.some((m) => m.department.name === SHIFT_MANAGERS_DEPARTMENT),
   };
 }
 

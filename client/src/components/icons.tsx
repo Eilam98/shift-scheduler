@@ -103,6 +103,14 @@ export function GameIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function ReceiptIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6M9 16h3" />
+    </Icon>
+  )
+}
+
 export function MoreIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>

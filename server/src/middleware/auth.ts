@@ -120,7 +120,14 @@ export async function canManageUser(user: AuthenticatedUser, targetUserId: strin
 }
 
 /** The seeded name of the department whose members are shift managers. */
-const SHIFT_MANAGERS_DEPARTMENT = "Shift Managers";
+export const SHIFT_MANAGERS_DEPARTMENT = "Shift Managers";
+
+/** Is `user` a member of the Shift Managers department? */
+export async function isShiftManager(user: AuthenticatedUser): Promise<boolean> {
+  if (user.memberDepartmentIds.length === 0) return false;
+  const shiftManagers = await prisma.department.findUnique({ where: { name: SHIFT_MANAGERS_DEPARTMENT } });
+  return !!shiftManagers && user.memberDepartmentIds.includes(shiftManagers.id);
+}
 
 /**
  * May `user` see schedules that aren't posted yet (read-only where they can't
@@ -128,7 +135,12 @@ const SHIFT_MANAGERS_DEPARTMENT = "Shift Managers";
  */
 export async function canViewDrafts(user: AuthenticatedUser): Promise<boolean> {
   if (user.isRestaurantManager || user.managedDepartmentIds.length > 0) return true;
-  if (user.memberDepartmentIds.length === 0) return false;
-  const shiftManagers = await prisma.department.findUnique({ where: { name: SHIFT_MANAGERS_DEPARTMENT } });
-  return !!shiftManagers && user.memberDepartmentIds.includes(shiftManagers.id);
+  return isShiftManager(user);
+}
+
+/** End-of-shift reports: any shift manager, or the restaurant manager. */
+export async function requireReportAccess(req: Request, res: Response, next: NextFunction) {
+  const user = req.user;
+  if (user && (user.isRestaurantManager || (await isShiftManager(user)))) return next();
+  return res.status(403).json({ error: "Only shift managers can fill in the end-of-shift report" });
 }

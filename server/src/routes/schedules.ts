@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
-import { addDays, parseWeekStart, toDateString } from "../lib/dates";
+import { parseWeekStart, toDateString } from "../lib/dates";
+import { ensureWeek } from "../lib/schedules";
 import { notifyWeekPosted } from "../lib/notifications";
 import {
   authenticate,
@@ -20,10 +21,9 @@ const createScheduleSchema = z.object({
 });
 
 /**
- * POST /api/schedules — create the week if it doesn't exist yet: the Schedule
- * row, one MORNING + one EVENING Shift per day (times from ShiftTemplate),
- * and a DRAFT DepartmentSchedule for every department. Idempotent, since the
- * week is shared by all departments and any of their managers may open it first.
+ * POST /api/schedules — create the week if it doesn't exist yet (see
+ * ensureWeek in lib/schedules.ts). Idempotent, since the week is shared by all
+ * departments and any of their managers may open it first.
  */
 router.post("/", requireAnyManager, async (req, res) => {
   const parsed = createScheduleSchema.safeParse(req.body);
@@ -32,45 +32,8 @@ router.post("/", requireAnyManager, async (req, res) => {
     return res.status(400).json({ error: "weekStartDate must be a Sunday in YYYY-MM-DD format" });
   }
 
-  const [existing, templates, departments] = await Promise.all([
-    prisma.schedule.findUnique({ where: { weekStartDate: weekStart } }),
-    prisma.shiftTemplate.findMany(),
-    prisma.department.findMany({ select: { id: true } }),
-  ]);
-
-  if (existing) {
-    // Fill in DepartmentSchedules for departments added after the week was
-    // created (e.g. Shift Managers), so every department can open it.
-    await prisma.departmentSchedule.createMany({
-      data: departments.map((d) => ({ scheduleId: existing.id, departmentId: d.id })),
-      skipDuplicates: true,
-    });
-    return res.status(200).json({ schedule: toScheduleResponse(existing) });
-  }
-
-  const shifts = [];
-  for (let day = 0; day < 7; day++) {
-    for (const template of templates) {
-      shifts.push({
-        date: addDays(weekStart, day),
-        label: template.label,
-        startTime: template.defaultStartTime,
-        endTime: template.defaultEndTime,
-      });
-    }
-  }
-
-  const schedule = await prisma.schedule.create({
-    data: {
-      weekStartDate: weekStart,
-      shifts: { create: shifts },
-      departmentSchedules: {
-        create: departments.map((d) => ({ departmentId: d.id })),
-      },
-    },
-  });
-
-  return res.status(201).json({ schedule: toScheduleResponse(schedule) });
+  const { schedule, created } = await ensureWeek(weekStart);
+  return res.status(created ? 201 : 200).json({ schedule: toScheduleResponse(schedule) });
 });
 
 /**

@@ -31,6 +31,7 @@ enum Language {
 enum TimeEntrySource {
   STATION // punched at a time clock station
   MANUAL // entered or added by a manager
+  REPORT // hours from the end-of-shift report (tips departments)
 }
 
 enum AvailabilityStatus {
@@ -68,6 +69,7 @@ model User {
   timeEntriesReviewed TimeEntry[]            @relation("TimeEntryReviewedBy")
   stationsCreated     StationDevice[]
   tetrisScore         TetrisScore?
+  tipPoolsEntered     TipPool[]
 }
 
 model Department {
@@ -177,6 +179,7 @@ model Shift {
   slots         ShiftSlot[]
   notifications Notification[]
   timeEntries   TimeEntry[]
+  tipPool       TipPool?
 
   @@unique([scheduleId, date, label])
 }
@@ -292,4 +295,18 @@ model TetrisScore {
   user User @relation(fields: [userId], references: [id])
 
   @@index([score])
+}
+
+// One tip pool per shift (end-of-shift report). Split by hours among the
+// shift's TIPS-department workers — shares are computed, never stored.
+model TipPool {
+  id          String   @id @default(cuid())
+  shiftId     String   @unique
+  totalAmount Int // agorot
+  enteredById String // who last saved the report
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  shift     Shift @relation(fields: [shiftId], references: [id])
+  enteredBy User  @relation(fields: [enteredById], references: [id])
 }
